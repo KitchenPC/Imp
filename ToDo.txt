@@ -1,0 +1,12 @@
+﻿To Do:
+
+Caching
+ - [StaticCacheAttribute] to specify exact response is same for everyone
+ - Attribute has "time in minutes" to hold in cache
+ - If Cache doesn't have record, store the response, add it to cache
+ - If Cache does have record, check time stamp before using
+Default page object (/BlahBlah/Whatever/ would create BlahBlah.Whatever.Default class)
+ - No need to configure this, just name your class Default in the namespace
+
+Web.config stuff:
+http://msdn.microsoft.com/en-us/library/2tw134k3.aspx

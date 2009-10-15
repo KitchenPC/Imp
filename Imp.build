@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<project name="Imp" default="build">
+    <property name="debug" value="true"/>
+
+    <target name="clean" description="remove all generated files">
+        <delete file="../kpcserver/bin/Imp.dll" if="${file::exists('../kpcserver/bin/Imp.dll')}" />
+        <delete file="../kpcserver/bin/Imp.pdb" if="${file::exists('../kpcserver/bin/Imp.pdb')}" />
+    </target>
+
+    <target name="build" description="compiles the source code">
+        <mkdir dir="../kpcserver/bin" />
+        <csc target="library" output="../kpcserver/bin/Imp.dll" debug="${debug}">
+            <sources>
+                <include name="BasePage.cs" />
+                <include name="Config.cs" />
+                <include name="Handler.cs" />
+                <include name="Interfaces.cs" />
+                <include name="NotFoundPage.cs" />
+                <include name="PageCompiler.cs" />
+                <include name="Properties/AssemblyInfo.cs" />
+                <include name="Request.cs" />
+                <include name="TemplateManagers.cs" />
+            </sources>
+        </csc>
+    </target>
+</project>
