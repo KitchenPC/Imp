@@ -114,9 +114,16 @@ namespace Imp
          Type pageType = page.GetType();
          foreach (string param in request.QueryString.AllKeys)
          {
+            if (String.IsNullOrEmpty(param))
+            {
+               continue;
+            }
+
             PropertyInfo prop = pageType.GetProperty(param);
             if (prop == null)
+            {
                continue;
+            }
 
             string sVal = request.QueryString[param];
             if (prop.CanWrite)
