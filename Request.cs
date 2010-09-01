@@ -253,6 +253,11 @@ namespace Imp
                return val;
          }
 
+         if (property.PropertyType.IsEnum && Enum.IsDefined(property.PropertyType, value))
+         {
+            return Enum.Parse(property.PropertyType, value);
+         }
+
          return null;
       }
    }
