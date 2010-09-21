@@ -217,7 +217,7 @@ namespace Imp.Compiler
          _chunks = new ChunkList();
          _curChunk = new StaticPageChunk();
 
-         if (_doc.DocumentElement.Name != ET_PAGETEMPLATE) //Document element must be a PageTemplate
+         if (String.Compare(_doc.DocumentElement.Name, ET_PAGETEMPLATE, true) != 0) //Document element must be a PageTemplate
          {
             throw new FormatException("Imp: Expected top level document node to be " + ET_PAGETEMPLATE + " but instead found " + _doc.DocumentElement.Name);
          }
@@ -359,7 +359,16 @@ namespace Imp.Compiler
       static void FormatNode(XmlNode node, StringBuilder output)
       {
          if (node is XmlComment) //Parse out comments from page output
+         {
+            if (node.Value.ToLower().StartsWith("[if")) //Render condition comments
+            {
+               output.Append(Environment.NewLine);
+               output.AppendFormat("<!--{0}-->", node.Value);
+               output.Append(Environment.NewLine);
+            }
+
             return;
+         }
 
          output.Append(Environment.NewLine);
          output.AppendFormat("<{0}", node.LocalName);
