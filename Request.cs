@@ -80,6 +80,14 @@ namespace Imp
             InitializeParameters(request, ret);
             return ret;
          }
+         else
+         {
+            //Fire NotFound event
+            if (Handler.OnNotFound != null)
+            {
+               return Handler.OnNotFound(request);
+            }
+         }
 
          return NotFoundPage;
       }

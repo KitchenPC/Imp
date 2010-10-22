@@ -25,7 +25,10 @@ namespace Imp
       static Dictionary<Type, CompiledPage> _pageCache;
       static ITemplateManager _templateManager;
       public delegate bool AuthenticateLogonCallback(HttpContext context, BasePage page);
+      public delegate BasePage NotFoundCallback(HttpRequest request);
+      
       public static AuthenticateLogonCallback Authenticate { get; set; }
+      public static NotFoundCallback OnNotFound { get; set; }
 
       static string _pageassembly = null;
       public static string PageAssemblyName
