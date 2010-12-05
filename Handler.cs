@@ -26,9 +26,11 @@ namespace Imp
       static ITemplateManager _templateManager;
       public delegate bool AuthenticateLogonCallback(HttpContext context, BasePage page);
       public delegate BasePage NotFoundCallback(HttpRequest request);
+      public delegate void PageCycleEvent(HttpRequest request, HttpResponse response);
       
       public static AuthenticateLogonCallback Authenticate { get; set; }
       public static NotFoundCallback OnNotFound { get; set; }
+      public static PageCycleEvent OnPreRender { get; set; }
 
       static string _pageassembly = null;
       public static string PageAssemblyName
@@ -129,6 +131,11 @@ namespace Imp
                   return;
                }
             }
+         }
+
+         if (Handler.OnPreRender != null) //Fire OnPreRender event
+         {
+            Handler.OnPreRender(context.Request, context.Response);
          }
 
          page.PreRender(context.Response);
