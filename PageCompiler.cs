@@ -74,6 +74,14 @@ namespace Imp.Compiler
          _parameters = node.Attributes;
       }
 
+      public string this[string parameter]
+      {
+         get
+         {
+            return GetParameter(parameter);
+         }
+      }
+
       public string GetParameter(string parameter)
       {
          if (_parameters[parameter] != null)
