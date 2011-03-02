@@ -85,7 +85,13 @@ namespace Imp
             //Fire NotFound event
             if (Handler.OnNotFound != null)
             {
-               return Handler.OnNotFound(request);
+               ret = Handler.OnNotFound(request);
+               if (ret != null)
+               {
+                  InitializeParameters(request, ret);
+               }
+
+               return ret;
             }
          }
 
