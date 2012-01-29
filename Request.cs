@@ -67,11 +67,21 @@ namespace Imp
             url = url.Substring(1);
          }
 
-         int extensionIndex = url.LastIndexOf('.');
-         string typename = String.Format("{0}.{1}",
-            RootNamespace,
-            url.Substring(0, extensionIndex).Replace('/', '.')
-            );
+         string typename;
+         if (url.EndsWith("/")) //Use Default class in that namespace
+         {
+            typename = String.Format("{0}.{1}Default",
+               RootNamespace,
+               url.Replace('/', '.')
+               );
+         }
+         else
+         {
+            typename = String.Format("{0}.{1}",
+               RootNamespace,
+               url.Substring(0, url.LastIndexOf('.')).Replace('/', '.')
+               );
+         }
 
          BasePage ret = CreatePageInstanceFromType(typename);
          if (ret != null)
