@@ -68,14 +68,14 @@ namespace Imp
          }
 
          string typename;
-         if (url.EndsWith("/")) //Use Default class in that namespace
+         if (url.EndsWith("/")) //Last directory acts as a page name
          {
-            typename = String.Format("{0}.{1}Default",
+            typename = String.Format("{0}.{1}",
                RootNamespace,
-               url.Replace('/', '.')
+               url.TrimEnd('/')
                );
          }
-         else
+         else //Use document as page name
          {
             typename = String.Format("{0}.{1}",
                RootNamespace,

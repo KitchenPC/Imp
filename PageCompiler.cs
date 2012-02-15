@@ -6,6 +6,7 @@ using System.Text;
 using System.Xml;
 
 using Imp;
+using System.Collections;
 
 namespace Imp.Compiler
 {
@@ -53,6 +54,7 @@ namespace Imp.Compiler
    }
 
    internal delegate void DynamicContentPtr(TextWriter output, DynamicContentArgs args);
+   internal delegate IEnumerable EnumerableContentPtr();
 
    internal class StaticPageChunk : IPageChunk
    {
@@ -65,13 +67,38 @@ namespace Imp.Compiler
       public DynamicContentArgs args;
    }
 
+   internal class EnumerablePageChunk : IPageChunk
+   {
+      public MethodInfo function;
+      public CompiledPage subdoc;
+   }
+
    public class DynamicContentArgs
    {
       private XmlAttributeCollection _parameters;
+      public object LoopValue { get; set; }
+
+      internal DynamicContentArgs GetLoopArgs(object value)
+      {
+         DynamicContentArgs ret = new DynamicContentArgs();
+         ret._parameters = this._parameters;
+         ret.LoopValue = value;
+
+         return ret;
+      }
+
+      private DynamicContentArgs()
+      {
+      }
 
       internal DynamicContentArgs(XmlNode node)
       {
          _parameters = node.Attributes;
+      }
+
+      internal DynamicContentArgs(XmlNode node, object lv) : this(node)
+      {
+         LoopValue = lv;
       }
 
       public string this[string parameter]
@@ -159,6 +186,11 @@ namespace Imp.Compiler
 
       public void Render(BasePage page, TextWriter output)
       {
+         Render(page, output, null);
+      }
+
+      public void Render(BasePage page, TextWriter output, object loopValue)
+      {
          ChunkNode cur = _chunks.Head;
          while (cur != null)
          {
@@ -172,7 +204,29 @@ namespace Imp.Compiler
             if (dynamicChunk != null)
             {
                DynamicContentPtr ptr = Delegate.CreateDelegate(typeof(DynamicContentPtr), page, dynamicChunk.function) as DynamicContentPtr;
-               ptr(output, dynamicChunk.args);
+
+               if (loopValue != null)
+               {
+                  ptr(output, dynamicChunk.args.GetLoopArgs(loopValue));
+               }
+               else
+               {
+                  ptr(output, dynamicChunk.args);
+               }
+            }
+
+            EnumerablePageChunk loopChunk = cur.data as EnumerablePageChunk;
+            if (loopChunk != null)
+            {
+               EnumerableContentPtr ptr = Delegate.CreateDelegate(typeof(EnumerableContentPtr), page, loopChunk.function) as EnumerableContentPtr;
+               IEnumerable e = ptr();
+               if (e != null)
+               {
+                  foreach (object obj in e)
+                  {
+                     loopChunk.subdoc.Render(page, output, obj);
+                  }
+               }
             }
 
             cur = cur.next;
@@ -188,10 +242,11 @@ namespace Imp.Compiler
       const string ET_PAGETEMPLATE = "PageTemplate";
       const string ET_CONTENT = "Content";
       const string ET_PLACEHOLDER = "Placeholder";
+      const string ET_LOOP = "Loop";
 
       string _template;
       XmlDocument _doc;
-      ChunkList _chunks;
+      //ChunkList _chunks;
       StaticPageChunk _curChunk;
       Type _pagetype;
       Stack<XmlNode> _templateStack;
@@ -222,7 +277,7 @@ namespace Imp.Compiler
          builder.AppendLine(@"<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Strict//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"">");
          builder.AppendLine(@"<meta http-equiv=""Content Type"" content=""text/html; charset=utf-8"" />");
 
-         _chunks = new ChunkList();
+         ChunkList _chunks = new ChunkList();
          _curChunk = new StaticPageChunk();
 
          if (String.Compare(_doc.DocumentElement.Name, ET_PAGETEMPLATE, true) != 0) //Document element must be a PageTemplate
@@ -230,8 +285,7 @@ namespace Imp.Compiler
             throw new FormatException("Imp: Expected top level document node to be " + ET_PAGETEMPLATE + " but instead found " + _doc.DocumentElement.Name);
          }
 
-         CompileDoc(_doc.DocumentElement.FirstChild, builder);
-
+         CompileDoc(_chunks, _doc.DocumentElement.FirstChild, builder);
          if (builder.Length > 0) //Dump any pending chunks
          {
             _curChunk.data = builder.ToString();
@@ -241,7 +295,7 @@ namespace Imp.Compiler
          return new CompiledPage(_chunks);
       }
 
-      void CompileDoc(XmlNode node, StringBuilder output)
+      void CompileDoc(ChunkList chunks, XmlNode node, StringBuilder output)
       {
          do
          {
@@ -259,7 +313,7 @@ namespace Imp.Compiler
                if (entityType == ET_DYNAMIC) //Add dynamic function pointer
                {
                   _curChunk.data = output.ToString(); //Write pending buffer to current page chunk
-                  _chunks.AddLast(_curChunk);
+                  chunks.AddLast(_curChunk);
                   _curChunk = new StaticPageChunk();
                   output.Remove(0, output.Length);
 
@@ -287,7 +341,7 @@ namespace Imp.Compiler
                   DynamicPageChunk chunk = new DynamicPageChunk();
                   chunk.function = method;
                   chunk.args = new DynamicContentArgs(node);
-                  _chunks.AddLast(chunk);
+                  chunks.AddLast(chunk);
                }
                else if (entityType == ET_CONST) //Process string resource
                {
@@ -318,7 +372,7 @@ namespace Imp.Compiler
                      }
 
                      _templateStack.Push(node);
-                     CompileDoc(xml.DocumentElement.FirstChild, output);
+                     CompileDoc(chunks, xml.DocumentElement.FirstChild, output);
                      _templateStack.Pop();
                   }
                   else
@@ -334,9 +388,36 @@ namespace Imp.Compiler
                      XmlNode content = template.SelectSingleNode(String.Format("{0}.{1}", ET_CONTENT, name));
                      if (content != null)
                      {
-                        CompileDoc(content.FirstChild, output);
+                        CompileDoc(chunks, content.FirstChild, output);
                      }
                   }
+               }
+               else if (entityType == ET_LOOP) //Get loop iterator and render children for each value in enumeration
+               {
+                  //Flush current text chunk
+                  _curChunk.data = output.ToString(); //Write pending buffer to current page chunk
+                  chunks.AddLast(_curChunk);
+                  _curChunk = new StaticPageChunk();
+                  output.Remove(0, output.Length);
+
+                  //Children of this node will become a new compiled sub-doc
+                  MethodInfo looper = _pagetype.GetMethod(name);
+                  EnumerablePageChunk chunk = new EnumerablePageChunk();
+                  chunk.function = looper;
+
+                  ChunkList subChunks = new ChunkList();
+                  StringBuilder subText = new StringBuilder();
+                  CompileDoc(subChunks, node.FirstChild, subText);
+
+                  if (subText.Length > 0) //Dump any pending chunks
+                  {
+                     _curChunk.data = subText.ToString();
+                     subChunks.AddLast(_curChunk);
+                     _curChunk = new StaticPageChunk();
+                  }
+
+                  chunk.subdoc = new CompiledPage(subChunks);
+                  chunks.AddLast(chunk);
                }
             }
             else if (node is XmlCDataSection)
@@ -351,7 +432,7 @@ namespace Imp.Compiler
                {
                   string nodeName = node.LocalName;
                   FormatNode(node, output);
-                  CompileDoc(node.FirstChild, output);
+                  CompileDoc(chunks, node.FirstChild, output);
                   output.AppendFormat("</{0}>", nodeName);
                }
                else
