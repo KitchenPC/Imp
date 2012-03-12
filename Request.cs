@@ -50,13 +50,18 @@ namespace Imp
          }
       }
 
-
       public static BasePage CreatePageObject(HttpRequest request)
       {
          //Parse URL to create namespace of object type
          string appPath = request.ApplicationPath.ToLower();
          string path = request.Path.ToLower();
          string url = path;
+
+         if (Regex.Match(url, @"/.*/default.html").Success) //HACKHACK: IIS6 puts default.html at the end of /subdir/
+            url = url.Replace("/default.html", "/");
+
+         if (url == "/") //HACKHACK: Need default document for IIS6 (though this should probably be made to work)
+            url = "/default.html";
 
          if (appPath != "/") //Site running in virtual directory
          {
