@@ -86,6 +86,8 @@ namespace Imp
          }
       }
 
+      public static log4net.ILog Log = log4net.LogManager.GetLogger(typeof(Handler));
+
       public ITemplateManager TemplateManager
       {
          get { return _templateManager; }
@@ -117,7 +119,10 @@ namespace Imp
           *   - Do we need any other control over template rendering, can you abort at runtime, maybe raise an event and let the class cancel/override?
           */
 
+         Log.InfoFormat("Processing Request: {0}", context.Request.Url.AbsoluteUri);
+         
          BasePage page = Request.CreatePageObject(context.Request);
+         Log.InfoFormat("Creating Page Type: {0}", page.GetType().FullName);
          page.SetHandler(this);
 
          //If secure page, authenticate first
@@ -156,10 +161,17 @@ namespace Imp
             if (template != null)
             {
                CompiledPage compiledPage = PageCompiler.Compile(template, page.GetType(), _templateManager);
-               _pageCache.Add(page.GetType(), compiledPage);
+
+               lock (page.GetType()) //It's possible another request compiled this page at the same time, so we need to check again
+               {
+                  //This page might have been compiled by another request, but locking would hurt perf so just check for it
+                  if (!_pageCache.ContainsKey(page.GetType()))
+                     _pageCache.Add(page.GetType(), compiledPage);
+               }
+
                compiledPage.Render(page, context.Response.Output);
             }
-            else //No defiend template, call Render method
+            else //No defined template, call Render method
             {
                page.Render(context.Response);
             }
