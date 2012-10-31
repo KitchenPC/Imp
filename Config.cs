@@ -44,6 +44,13 @@ namespace Imp.Config
          set { this["RootTemplateNamespace"] = value; }
       }
 
+      [ConfigurationProperty("CDNPrefix", IsRequired = false)]
+      public String CDNPrefix
+      {
+         get { return (String)this["CDNPrefix"]; }
+         set { this["CDNPrefix"] = value; }
+      }
+
       public SectionHandler()
       {
       }

@@ -7,6 +7,8 @@ using System.Xml;
 
 using Imp;
 using System.Collections;
+using System.Text.RegularExpressions;
+using Imp.Config;
 
 namespace Imp.Compiler
 {
@@ -243,17 +245,23 @@ namespace Imp.Compiler
       const string ET_CONTENT = "Content";
       const string ET_PLACEHOLDER = "Placeholder";
       const string ET_LOOP = "Loop";
+      const string ET_CDNPREFIX = "Cdn";
 
       string _template;
       XmlDocument _doc;
-      //ChunkList _chunks;
       StaticPageChunk _curChunk;
       Type _pagetype;
       Stack<XmlNode> _templateStack;
       ITemplateManager _resManager;
+      string cdnPrefix;
+      Regex cdnMatch;
 
       PageCompiler(string template, Type pagetype, ITemplateManager resmanager)
       {
+         SectionHandler config = (SectionHandler)System.Configuration.ConfigurationManager.GetSection(Config.SectionHandler.ConfigSectionName);
+
+         cdnMatch = new Regex(String.Format("^{0}.", ET_CDNPREFIX), RegexOptions.IgnoreCase);
+         cdnPrefix = config.CDNPrefix;
          _template = template;
          _pagetype = pagetype;
 
@@ -445,7 +453,7 @@ namespace Imp.Compiler
          } while (node != null);
       }
 
-      static void FormatNode(XmlNode node, StringBuilder output)
+      void FormatNode(XmlNode node, StringBuilder output)
       {
          if (node is XmlComment) //Parse out comments from page output
          {
@@ -466,7 +474,16 @@ namespace Imp.Compiler
          {
             foreach (XmlAttribute att in node.Attributes)
             {
-               output.AppendFormat(" {0}=\"{1}\"", att.Name, att.Value);
+               string name = att.Name;
+               string value = att.Value;
+
+               if (cdnMatch.IsMatch(name)) //Insert CDN prefix if available
+               {
+                  name = cdnMatch.Replace(name, String.Empty);
+                  value = cdnPrefix + value; //Note: If no prefix is configured, this will just no-op
+               }
+
+               output.AppendFormat(" {0}=\"{1}\"", name, value);
             }
          }
 
