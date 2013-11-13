@@ -1,22 +1,8 @@
-﻿using System;
-using System.Data;
-using System.Configuration;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.Security;
-using System.Web.UI;
-using System.Web.UI.HtmlControls;
-using System.Web.UI.WebControls;
-using System.Web.UI.WebControls.WebParts;
-using System.Xml.Linq;
-
+﻿using Imp.Compiler;
 using Imp.Config;
-using Imp.Compiler;
-
-/// <summary>
-/// Summary description for Handler
-/// </summary>
+using System;
+using System.Collections.Generic;
+using System.Web;
 
 namespace Imp
 {
@@ -27,12 +13,14 @@ namespace Imp
       public delegate bool AuthenticateLogonCallback(HttpContext context, BasePage page);
       public delegate BasePage NotFoundCallback(HttpRequest request);
       public delegate void PageCycleEvent(HttpRequest request, HttpResponse response);
+      public delegate string CdnResolutionEvent(string url);
       
       public static AuthenticateLogonCallback Authenticate { get; set; }
       public static NotFoundCallback OnNotFound { get; set; }
       public static PageCycleEvent OnPreRender { get; set; }
+      public static CdnResolutionEvent OnBuildCdnPath { get; set; }
 
-      static string _pageassembly = null;
+      static string _pageassembly;
       public static string PageAssemblyName
       {
          get
@@ -59,7 +47,7 @@ namespace Imp
          }
       }
 
-      static string _roottemplatenamespace = null;
+      static string _roottemplatenamespace;
       public static string RootTemplateNamespace
       {
          get

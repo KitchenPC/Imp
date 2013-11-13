@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Text;
 using System.Xml;
 
-using Imp;
 using System.Collections;
 using System.Text.RegularExpressions;
 using Imp.Config;
@@ -14,7 +13,7 @@ namespace Imp.Compiler
 {
    public class PageCompileException : Exception
    {
-      public PageCompileException() : base() { }
+      public PageCompileException() { }
       public PageCompileException(string message) : base(message) { }
    }
 
@@ -23,7 +22,7 @@ namespace Imp.Compiler
       private string _methodname;
       public string MethodName { get { return _methodname; } }
 
-      public PageMethodNotFoundException(string methodname) : base()
+      public PageMethodNotFoundException(string methodname)
       {
          _methodname = methodname;
       }
@@ -34,7 +33,7 @@ namespace Imp.Compiler
       private string _methodname;
       public string MethodName { get { return _methodname; } }
 
-      public PageMethodBindingException(string methodname) : base()
+      public PageMethodBindingException(string methodname)
       {
          _methodname = methodname;
       }
@@ -42,10 +41,10 @@ namespace Imp.Compiler
 
    public class StaticResourceNotFoundException : PageCompileException
    {
-      private string _resname;
+      private readonly string _resname;
       public string ResourceName { get { return _resname; } }
 
-      public StaticResourceNotFoundException(string resname) : base()
+      public StaticResourceNotFoundException(string resname)
       {
          _resname = resname;
       }
@@ -247,14 +246,14 @@ namespace Imp.Compiler
       const string ET_LOOP = "Loop";
       const string ET_CDNPREFIX = "Cdn";
 
-      string _template;
-      XmlDocument _doc;
       StaticPageChunk _curChunk;
-      Type _pagetype;
-      Stack<XmlNode> _templateStack;
-      ITemplateManager _resManager;
-      string cdnPrefix;
-      Regex cdnMatch;
+      
+      readonly XmlDocument _doc;
+      readonly Type _pagetype;
+      readonly Stack<XmlNode> _templateStack;
+      readonly ITemplateManager _resManager;
+      readonly string cdnPrefix;
+      readonly Regex cdnMatch;
 
       PageCompiler(string template, Type pagetype, ITemplateManager resmanager)
       {
@@ -262,7 +261,6 @@ namespace Imp.Compiler
 
          cdnMatch = new Regex(String.Format("^{0}.", ET_CDNPREFIX), RegexOptions.IgnoreCase);
          cdnPrefix = config.CDNPrefix;
-         _template = template;
          _pagetype = pagetype;
 
          _templateStack = new Stack<XmlNode>();
@@ -288,7 +286,7 @@ namespace Imp.Compiler
          ChunkList _chunks = new ChunkList();
          _curChunk = new StaticPageChunk();
 
-         if (String.Compare(_doc.DocumentElement.Name, ET_PAGETEMPLATE, true) != 0) //Document element must be a PageTemplate
+         if (String.Compare(_doc.DocumentElement.Name, ET_PAGETEMPLATE, StringComparison.OrdinalIgnoreCase) != 0) //Document element must be a PageTemplate
          {
             throw new FormatException("Imp: Expected top level document node to be " + ET_PAGETEMPLATE + " but instead found " + _doc.DocumentElement.Name);
          }
@@ -309,7 +307,7 @@ namespace Imp.Compiler
          {
             if (node is XmlText)
             {
-               output.Append(((XmlText)node).Value);
+               output.Append(node.Value);
             }
             else if (node.LocalName.Contains("."))
             {
@@ -336,10 +334,6 @@ namespace Imp.Compiler
                   try
                   {
                      object page = _pagetype.GetConstructor(new Type[0]).Invoke(null);
-                     if (Delegate.CreateDelegate(typeof(DynamicContentPtr), page, method) == null)
-                     {
-                        throw new PageMethodNotFoundException(name);
-                     }
                   }
                   catch (Exception)
                   {
@@ -356,7 +350,7 @@ namespace Imp.Compiler
                   FieldInfo field = _pagetype.GetField(name);
                   if (field != null && field.IsLiteral)
                   {
-                     output.Append(field.GetRawConstantValue().ToString());
+                     output.Append(field.GetRawConstantValue());
                   }
                   else
                   {
@@ -481,6 +475,11 @@ namespace Imp.Compiler
                {
                   name = cdnMatch.Replace(name, String.Empty);
                   value = cdnPrefix + value; //Note: If no prefix is configured, this will just no-op
+
+                  if (Handler.OnBuildCdnPath != null)
+                  {
+                     value = Handler.OnBuildCdnPath(value);
+                  }
                }
 
                output.AppendFormat(" {0}=\"{1}\"", name, value);
@@ -490,7 +489,7 @@ namespace Imp.Compiler
          if (node.HasChildNodes)
          {
             output.Append(">");
-         }
+         } 
          else
          {
             if (node.OuterXml.EndsWith("</" + node.LocalName + ">")) //HACK: Some tags such as <Script> and <IFrame> require explicit closing tags otherwise page doesn't render

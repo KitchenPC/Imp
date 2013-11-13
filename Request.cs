@@ -5,12 +5,11 @@ using System.Web;
 
 using Imp.Config;
 
-/// <summary>
-/// Creates Page instances based on incoming URL requests.
-/// </summary>
-
 namespace Imp
 {
+   /// <summary>
+   /// Creates Page instances based on incoming URL requests.
+   /// </summary>
    public static class Request
    {
       private static BasePage _notFound;
@@ -115,15 +114,7 @@ namespace Imp
 
       private static BasePage CreatePageInstanceFromType(string typename)
       {
-         string fqtype = String.Empty;
-         if (String.IsNullOrEmpty(Handler.PageAssemblyName))
-         {
-            fqtype = typename;
-         }
-         else
-         {
-            fqtype = String.Format("{0}, {1}", typename, Handler.PageAssemblyName);
-         }
+         string fqtype = String.IsNullOrEmpty(Handler.PageAssemblyName) ? typename : String.Format("{0}, {1}", typename, Handler.PageAssemblyName);
 
          Type pageType = Type.GetType(fqtype, false, true);
          if (pageType == null)

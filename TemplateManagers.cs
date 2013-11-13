@@ -1,11 +1,7 @@
 ﻿using System;
-using System.Xml;
 using System.IO;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-
-using Imp.Compiler;
+using System.Xml;
 
 namespace Imp.TemplateManagers
 {
