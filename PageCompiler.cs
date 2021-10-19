@@ -1,506 +1,446 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Xml;
 
-using System.Collections;
-using System.Text.RegularExpressions;
-using Imp.Config;
-
-namespace Imp.Compiler
+namespace Imp
 {
-   public class PageCompileException : Exception
-   {
-      public PageCompileException() { }
-      public PageCompileException(string message) : base(message) { }
-   }
+    public class PageCompileException : Exception
+    {
+        public PageCompileException()
+        {
+        }
 
-   public class PageMethodNotFoundException : PageCompileException
-   {
-      private string _methodname;
-      public string MethodName { get { return _methodname; } }
+        public PageCompileException(string message) : base(message)
+        {
+        }
+    }
 
-      public PageMethodNotFoundException(string methodname)
-      {
-         _methodname = methodname;
-      }
-   }
+    public class PageMethodNotFoundException : PageCompileException
+    {
+        public PageMethodNotFoundException(string methodname)
+        {
+            MethodName = methodname;
+        }
 
-   public class PageMethodBindingException : PageCompileException
-   {
-      private string _methodname;
-      public string MethodName { get { return _methodname; } }
+        public string MethodName { get; }
+    }
 
-      public PageMethodBindingException(string methodname)
-      {
-         _methodname = methodname;
-      }
-   }
+    public class PageMethodBindingException : PageCompileException
+    {
+        public PageMethodBindingException(string methodname)
+        {
+            MethodName = methodname;
+        }
 
-   public class StaticResourceNotFoundException : PageCompileException
-   {
-      private readonly string _resname;
-      public string ResourceName { get { return _resname; } }
+        public string MethodName { get; }
+    }
 
-      public StaticResourceNotFoundException(string resname)
-      {
-         _resname = resname;
-      }
-   }
+    public class StaticResourceNotFoundException : PageCompileException
+    {
+        public StaticResourceNotFoundException(string resname)
+        {
+            ResourceName = resname;
+        }
 
-   public class MissingStaticResourceManagerException : PageCompileException
-   {
-   }
+        public string ResourceName { get; }
+    }
 
-   internal delegate void DynamicContentPtr(TextWriter output, DynamicContentArgs args);
-   internal delegate IEnumerable EnumerableContentPtr();
+    public class MissingStaticResourceManagerException : PageCompileException
+    {
+    }
 
-   internal class StaticPageChunk : IPageChunk
-   {
-      public string data { get; set; }
-   }
+    internal delegate Task DynamicContentPtr(TextWriter output, DynamicContentArgs args);
 
-   internal class DynamicPageChunk : IPageChunk
-   {
-      public MethodInfo function;
-      public DynamicContentArgs args;
-   }
+    internal delegate IEnumerable EnumerableContentPtr();
 
-   internal class EnumerablePageChunk : IPageChunk
-   {
-      public MethodInfo function;
-      public CompiledPage subdoc;
-   }
+    internal class StaticPageChunk : IPageChunk
+    {
+        public string Data { get; set; }
+    }
 
-   public class DynamicContentArgs
-   {
-      private XmlAttributeCollection _parameters;
-      public object LoopValue { get; set; }
+    internal class DynamicPageChunk : IPageChunk
+    {
+        public DynamicContentArgs Args;
+        public MethodInfo Function;
+    }
 
-      internal DynamicContentArgs GetLoopArgs(object value)
-      {
-         DynamicContentArgs ret = new DynamicContentArgs();
-         ret._parameters = this._parameters;
-         ret.LoopValue = value;
+    internal class EnumerablePageChunk : IPageChunk
+    {
+        public MethodInfo Function;
+        public CompiledPage Subdoc;
+    }
 
-         return ret;
-      }
+    public class DynamicContentArgs
+    {
+        private XmlAttributeCollection _parameters;
 
-      private DynamicContentArgs()
-      {
-      }
+        private DynamicContentArgs()
+        {
+        }
 
-      internal DynamicContentArgs(XmlNode node)
-      {
-         _parameters = node.Attributes;
-      }
+        internal DynamicContentArgs(XmlNode node)
+        {
+            _parameters = node.Attributes;
+        }
 
-      internal DynamicContentArgs(XmlNode node, object lv) : this(node)
-      {
-         LoopValue = lv;
-      }
+        internal DynamicContentArgs(XmlNode node, object lv) : this(node)
+        {
+            LoopValue = lv;
+        }
 
-      public string this[string parameter]
-      {
-         get
-         {
-            return GetParameter(parameter);
-         }
-      }
+        public object LoopValue { get; set; }
 
-      public string GetParameter(string parameter)
-      {
-         if (_parameters[parameter] != null)
-         {
-            return _parameters[parameter].Value;
-         }
-         else
-         {
-            return null;
-         }
-      }
-   }
+        public string this[string parameter] => GetParameter(parameter);
 
-   internal class ChunkNode
-   {
-      private IPageChunk _data;
-      private ChunkNode _next;
-      
-      public IPageChunk data
-      {
-         get { return _data; }
-         set { _data = value; }
-      }
+        internal DynamicContentArgs GetLoopArgs(object value)
+        {
+            return new DynamicContentArgs {_parameters = _parameters, LoopValue = value};
+        }
 
-      public ChunkNode next
-      {
-         get { return _next; }
-         set { _next = value; }
-      }
+        public string GetParameter(string parameter)
+        {
+            return _parameters[parameter] != null ? _parameters[parameter].Value : null;
+        }
+    }
 
-      public ChunkNode()
-      {
-         _next = null;
-      }
-   }
+    internal class ChunkNode
+    {
+        public ChunkNode()
+        {
+            Next = null;
+        }
 
-   internal class ChunkList
-   {
-      private ChunkNode _head;
-      private ChunkNode _tail;
+        public IPageChunk Data { get; set; }
 
-      public ChunkNode Head { get { return _head; } }
+        public ChunkNode Next { get; set; }
+    }
 
-      public ChunkList()
-      {
-         _head = null;
-      }
+    internal class ChunkList
+    {
+        private ChunkNode _tail;
 
-      public void AddLast(IPageChunk data)
-      {
-         if (_head == null)
-         {
-            _head = new ChunkNode();
-            _head.data = data;
-            _tail = _head;
-         }
-         else
-         {
-            ChunkNode temp = new ChunkNode();
-            temp.data = data;
-            _tail.next = temp;
-            _tail = temp;
-         }
-      }
-   }
+        public ChunkList()
+        {
+            Head = null;
+        }
 
-   class CompiledPage
-   {
-      ChunkList _chunks;
+        public ChunkNode Head { get; private set; }
 
-      public CompiledPage(ChunkList chunks)
-      {
-         _chunks = chunks;
-      }
-
-      public void Render(BasePage page, TextWriter output)
-      {
-         Render(page, output, null);
-      }
-
-      public void Render(BasePage page, TextWriter output, object loopValue)
-      {
-         ChunkNode cur = _chunks.Head;
-         while (cur != null)
-         {
-            StaticPageChunk staticChunk = cur.data as StaticPageChunk;
-            if (staticChunk != null)
+        public void AddLast(IPageChunk data)
+        {
+            if (Head == null)
             {
-               output.Write(staticChunk.data);
-            }
-
-            DynamicPageChunk dynamicChunk = cur.data as DynamicPageChunk;
-            if (dynamicChunk != null)
-            {
-               DynamicContentPtr ptr = Delegate.CreateDelegate(typeof(DynamicContentPtr), page, dynamicChunk.function) as DynamicContentPtr;
-
-               if (loopValue != null)
-               {
-                  ptr(output, dynamicChunk.args.GetLoopArgs(loopValue));
-               }
-               else
-               {
-                  ptr(output, dynamicChunk.args);
-               }
-            }
-
-            EnumerablePageChunk loopChunk = cur.data as EnumerablePageChunk;
-            if (loopChunk != null)
-            {
-               EnumerableContentPtr ptr = Delegate.CreateDelegate(typeof(EnumerableContentPtr), page, loopChunk.function) as EnumerableContentPtr;
-               IEnumerable e = ptr();
-               if (e != null)
-               {
-                  foreach (object obj in e)
-                  {
-                     loopChunk.subdoc.Render(page, output, obj);
-                  }
-               }
-            }
-
-            cur = cur.next;
-         }
-      }
-   }
-
-   internal class PageCompiler
-   {
-      const string ET_DYNAMIC  = "Dynamic";
-      const string ET_CONST = "Const";
-      const string ET_TEMPLATE = "Template";
-      const string ET_PAGETEMPLATE = "PageTemplate";
-      const string ET_CONTENT = "Content";
-      const string ET_PLACEHOLDER = "Placeholder";
-      const string ET_LOOP = "Loop";
-      const string ET_CDNPREFIX = "Cdn";
-
-      StaticPageChunk _curChunk;
-      
-      readonly XmlDocument _doc;
-      readonly Type _pagetype;
-      readonly Stack<XmlNode> _templateStack;
-      readonly ITemplateManager _resManager;
-      readonly string cdnPrefix;
-      readonly Regex cdnMatch;
-
-      PageCompiler(string template, Type pagetype, ITemplateManager resmanager)
-      {
-         SectionHandler config = (SectionHandler)System.Configuration.ConfigurationManager.GetSection(Config.SectionHandler.ConfigSectionName);
-
-         cdnMatch = new Regex(String.Format("^{0}.", ET_CDNPREFIX), RegexOptions.IgnoreCase);
-         cdnPrefix = config.CDNPrefix;
-         _pagetype = pagetype;
-
-         _templateStack = new Stack<XmlNode>();
-         _doc = new XmlDocument();
-         _resManager = resmanager;
-         _doc.LoadXml(template);
-      }
-
-      public static CompiledPage Compile(string template, Type pagetype, ITemplateManager resmanager)
-      {
-         PageCompiler compiler = new PageCompiler(template, pagetype, resmanager);
-         return compiler.Compile();
-      }
-
-      CompiledPage Compile()
-      {
-         StringBuilder builder = new StringBuilder();
-
-         //TODO: Strict mode should be configurable through web.config setting or other means
-         builder.AppendLine(@"<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Strict//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"">");
-         builder.AppendLine(@"<meta http-equiv=""Content Type"" content=""text/html; charset=utf-8"" />");
-
-         ChunkList _chunks = new ChunkList();
-         _curChunk = new StaticPageChunk();
-
-         if (String.Compare(_doc.DocumentElement.Name, ET_PAGETEMPLATE, StringComparison.OrdinalIgnoreCase) != 0) //Document element must be a PageTemplate
-         {
-            throw new FormatException("Imp: Expected top level document node to be " + ET_PAGETEMPLATE + " but instead found " + _doc.DocumentElement.Name);
-         }
-
-         CompileDoc(_chunks, _doc.DocumentElement.FirstChild, builder);
-         if (builder.Length > 0) //Dump any pending chunks
-         {
-            _curChunk.data = builder.ToString();
-            _chunks.AddLast(_curChunk);
-         }
-
-         return new CompiledPage(_chunks);
-      }
-
-      void CompileDoc(ChunkList chunks, XmlNode node, StringBuilder output)
-      {
-         do
-         {
-            if (node is XmlText)
-            {
-               output.Append(node.Value);
-            }
-            else if (node.LocalName.Contains("."))
-            {
-               //TODO: Rework "if" logic to parse only Imp commands
-               string[] arrParts = node.LocalName.Split('.');
-               string entityType = arrParts[0];
-               string name = arrParts[1];
-
-               if (entityType == ET_DYNAMIC) //Add dynamic function pointer
-               {
-                  _curChunk.data = output.ToString(); //Write pending buffer to current page chunk
-                  chunks.AddLast(_curChunk);
-                  _curChunk = new StaticPageChunk();
-                  output.Remove(0, output.Length);
-
-                  //Lookup matching method on _page
-                  MethodInfo method = _pagetype.GetMethod(name);
-                  if (method == null)
-                  {
-                     throw new PageMethodNotFoundException(name);
-                  }
-
-                  //Test delegate creation now so we don't have to worry about errors at render time
-                  try
-                  {
-                     object page = _pagetype.GetConstructor(new Type[0]).Invoke(null);
-                  }
-                  catch (Exception)
-                  {
-                     throw new PageMethodBindingException(name);
-                  }
-
-                  DynamicPageChunk chunk = new DynamicPageChunk();
-                  chunk.function = method;
-                  chunk.args = new DynamicContentArgs(node);
-                  chunks.AddLast(chunk);
-               }
-               else if (entityType == ET_CONST) //Process string resource
-               {
-                  FieldInfo field = _pagetype.GetField(name);
-                  if (field != null && field.IsLiteral)
-                  {
-                     output.Append(field.GetRawConstantValue());
-                  }
-                  else
-                  {
-                     throw new StaticResourceNotFoundException(name);
-                  }
-               }
-               else if (entityType == ET_TEMPLATE) //Process template
-               {
-                  if (_resManager == null)
-                  {
-                     throw new MissingStaticResourceManagerException();
-                  }
-
-                  //Keep stack of templates currently being processed so we can "fill in" the contents later on
-                  XmlDocument xml = _resManager.GetTemplate(name);
-                  if (xml != null)
-                  {
-                     if (xml.DocumentElement.Name != ET_TEMPLATE) //Document element must be a Template
-                     {
-                        throw new FormatException("Imp: Expected top level document node to be " + ET_TEMPLATE + " but instead found " + xml.DocumentElement.Name);
-                     }
-
-                     _templateStack.Push(node);
-                     CompileDoc(chunks, xml.DocumentElement.FirstChild, output);
-                     _templateStack.Pop();
-                  }
-                  else
-                  {
-                     throw new StaticResourceNotFoundException(name);
-                  }
-               }
-               else if (entityType == ET_PLACEHOLDER) //Render out matching content from template
-               {
-                  XmlNode template = _templateStack.Peek();
-                  if (template != null) //undefined placeholders are valid scenario, no error out
-                  {
-                     XmlNode content = template.SelectSingleNode(String.Format("{0}.{1}", ET_CONTENT, name));
-                     if (content != null)
-                     {
-                        CompileDoc(chunks, content.FirstChild, output);
-                     }
-                  }
-               }
-               else if (entityType == ET_LOOP) //Get loop iterator and render children for each value in enumeration
-               {
-                  //Flush current text chunk
-                  _curChunk.data = output.ToString(); //Write pending buffer to current page chunk
-                  chunks.AddLast(_curChunk);
-                  _curChunk = new StaticPageChunk();
-                  output.Remove(0, output.Length);
-
-                  //Children of this node will become a new compiled sub-doc
-                  MethodInfo looper = _pagetype.GetMethod(name);
-                  EnumerablePageChunk chunk = new EnumerablePageChunk();
-                  chunk.function = looper;
-
-                  ChunkList subChunks = new ChunkList();
-                  StringBuilder subText = new StringBuilder();
-                  CompileDoc(subChunks, node.FirstChild, subText);
-
-                  if (subText.Length > 0) //Dump any pending chunks
-                  {
-                     _curChunk.data = subText.ToString();
-                     subChunks.AddLast(_curChunk);
-                     _curChunk = new StaticPageChunk();
-                  }
-
-                  chunk.subdoc = new CompiledPage(subChunks);
-                  chunks.AddLast(chunk);
-               }
-            }
-            else if (node is XmlCDataSection)
-            {
-               output.Append(Environment.NewLine);
-               output.Append(node.InnerText);
-               output.Append(Environment.NewLine);
+                Head = new ChunkNode();
+                Head.Data = data;
+                _tail = Head;
             }
             else
             {
-               if (node.HasChildNodes)
-               {
-                  string nodeName = node.LocalName;
-                  FormatNode(node, output);
-                  CompileDoc(chunks, node.FirstChild, output);
-                  output.AppendFormat("</{0}>", nodeName);
-               }
-               else
-               {
-                  FormatNode(node, output);
-               }
+                var temp = new ChunkNode();
+                temp.Data = data;
+                _tail.Next = temp;
+                _tail = temp;
+            }
+        }
+    }
+
+    internal class CompiledPage
+    {
+        private readonly ChunkList _chunks;
+
+        public CompiledPage(ChunkList chunks)
+        {
+            _chunks = chunks;
+        }
+
+        public async Task Render(BasePage page, Stream output)
+        {
+            using (var writer = new StreamWriter(output))
+            {
+                await Render(page, writer, null);
+                await writer.FlushAsync();
+            }
+        }
+
+        public async Task Render(BasePage page, TextWriter output, object loopValue)
+        {
+            var cur = _chunks.Head;
+            while (cur != null)
+            {
+                if (cur.Data is StaticPageChunk staticChunk)
+                {
+                    await output.WriteAsync(staticChunk.Data);
+                }
+
+                if (cur.Data is DynamicPageChunk dynamicChunk)
+                {
+                    var ptr = Delegate.CreateDelegate(typeof(DynamicContentPtr), page, dynamicChunk.Function) as DynamicContentPtr;
+
+                    await ptr(output, loopValue != null ? dynamicChunk.Args.GetLoopArgs(loopValue) : dynamicChunk.Args);
+                }
+
+                if (cur.Data is EnumerablePageChunk loopChunk)
+                {
+                    var ptr = Delegate.CreateDelegate(typeof(EnumerableContentPtr), page, loopChunk.Function) as EnumerableContentPtr;
+                    var e = ptr();
+                    if (e != null)
+                    {
+                        foreach (var obj in e)
+                        {
+                            await loopChunk.Subdoc.Render(page, output, obj);
+                        }
+                    }
+                }
+
+                cur = cur.Next;
+            }
+        }
+    }
+
+    internal class PageCompiler
+    {
+        private const string ET_DYNAMIC = "Dynamic";
+        private const string ET_CONST = "Const";
+        private const string ET_TEMPLATE = "Template";
+        private const string ET_PAGETEMPLATE = "PageTemplate";
+        private const string ET_CONTENT = "Content";
+        private const string ET_PLACEHOLDER = "Placeholder";
+        private const string ET_LOOP = "Loop";
+        private const string ET_CDNPREFIX = "Cdn";
+
+        private readonly XmlDocument _doc;
+        private readonly Type _pagetype;
+        private readonly ITemplateManager _resManager;
+        private readonly Stack<XmlNode> _templateStack;
+        private readonly Regex cdnMatch;
+        private readonly string cdnPrefix;
+
+        private StaticPageChunk _curChunk;
+
+        private PageCompiler(ImpMiddleware middleware, string template, Type pagetype, ITemplateManager resmanager)
+        {
+            cdnMatch = new Regex($"^{ET_CDNPREFIX}.", RegexOptions.IgnoreCase);
+            cdnPrefix = middleware.CdnPrefix;
+            _pagetype = pagetype;
+
+            _templateStack = new Stack<XmlNode>();
+            _doc = new XmlDocument();
+            _resManager = resmanager;
+            _doc.LoadXml(template);
+        }
+
+        public static CompiledPage Compile(ImpMiddleware middleware, string template, Type pagetype, ITemplateManager resmanager)
+        {
+            var compiler = new PageCompiler(middleware, template, pagetype, resmanager);
+            return compiler.Compile();
+        }
+
+        private CompiledPage Compile()
+        {
+            var builder = new StringBuilder();
+
+            //TODO: Strict mode should be configurable through web.config setting or other means
+            builder.AppendLine(@"<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Strict//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"">");
+            builder.AppendLine(@"<meta http-equiv=""Content Type"" content=""text/html; charset=utf-8"" />");
+
+            var chunks = new ChunkList();
+            _curChunk = new StaticPageChunk();
+
+            if (String.Compare(_doc.DocumentElement.Name, ET_PAGETEMPLATE, StringComparison.OrdinalIgnoreCase) != 0) //Document element must be a PageTemplate
+                throw new FormatException("Imp: Expected top level document node to be " + ET_PAGETEMPLATE + " but instead found " + _doc.DocumentElement.Name);
+
+            CompileDoc(chunks, _doc.DocumentElement.FirstChild, builder);
+            if (builder.Length > 0) //Dump any pending chunks
+            {
+                _curChunk.Data = builder.ToString();
+                chunks.AddLast(_curChunk);
             }
 
-            node = node.NextSibling;
-         } while (node != null);
-      }
+            return new CompiledPage(chunks);
+        }
 
-      void FormatNode(XmlNode node, StringBuilder output)
-      {
-         if (node is XmlComment) //Parse out comments from page output
-         {
-            if (node.Value.ToLower().StartsWith("[if")) //Render condition comments
+        private void CompileDoc(ChunkList chunks, XmlNode node, StringBuilder output)
+        {
+            do
             {
-               output.Append(Environment.NewLine);
-               output.AppendFormat("<!--{0}-->", node.Value);
-               output.Append(Environment.NewLine);
+                if (node is XmlText)
+                {
+                    output.Append(node.Value);
+                }
+                else if (node.LocalName.Contains("."))
+                {
+                    //TODO: Rework "if" logic to parse only Imp commands
+                    var arrParts = node.LocalName.Split('.');
+                    string entityType = arrParts[0];
+                    string name = arrParts[1];
+
+                    if (entityType == ET_DYNAMIC) //Add dynamic function pointer
+                    {
+                        _curChunk.Data = output.ToString(); //Write pending buffer to current page chunk
+                        chunks.AddLast(_curChunk);
+                        _curChunk = new StaticPageChunk();
+                        output.Remove(0, output.Length);
+
+                        //Lookup matching method on _page
+                        var method = _pagetype.GetMethod(name);
+                        if (method == null) throw new PageMethodNotFoundException(name);
+
+                        //Test delegate creation now so we don't have to worry about errors at render time
+                        try
+                        {
+                            _pagetype.GetConstructor(new Type[0]).Invoke(null);
+                        }
+                        catch (Exception)
+                        {
+                            throw new PageMethodBindingException(name);
+                        }
+
+                        var chunk = new DynamicPageChunk
+                        {
+                            Function = method,
+                            Args = new DynamicContentArgs(node)
+                        };
+
+                        chunks.AddLast(chunk);
+                    }
+                    else if (entityType == ET_CONST) //Process string resource
+                    {
+                        var field = _pagetype.GetField(name);
+                        if (field != null && field.IsLiteral)
+                            output.Append(field.GetRawConstantValue());
+                        else
+                            throw new StaticResourceNotFoundException(name);
+                    }
+                    else if (entityType == ET_TEMPLATE) //Process template
+                    {
+                        if (_resManager == null) throw new MissingStaticResourceManagerException();
+
+                        //Keep stack of templates currently being processed so we can "fill in" the contents later on
+                        var xml = _resManager.GetTemplate(name);
+                        if (xml != null)
+                        {
+                            if (xml.DocumentElement.Name != ET_TEMPLATE) //Document element must be a Template
+                                throw new FormatException("Imp: Expected top level document node to be " + ET_TEMPLATE + " but instead found " + xml.DocumentElement.Name);
+
+                            _templateStack.Push(node);
+                            CompileDoc(chunks, xml.DocumentElement.FirstChild, output);
+                            _templateStack.Pop();
+                        }
+                        else
+                        {
+                            throw new StaticResourceNotFoundException(name);
+                        }
+                    }
+                    else if (entityType == ET_PLACEHOLDER) //Render out matching content from template
+                    {
+                        var template = _templateStack.Peek();
+                        var content = template?.SelectSingleNode($"{ET_CONTENT}.{name}");
+                        if (content != null) CompileDoc(chunks, content.FirstChild, output);
+                    }
+                    else if (entityType == ET_LOOP) //Get loop iterator and render children for each value in enumeration
+                    {
+                        //Flush current text chunk
+                        _curChunk.Data = output.ToString(); //Write pending buffer to current page chunk
+                        chunks.AddLast(_curChunk);
+                        _curChunk = new StaticPageChunk();
+                        output.Remove(0, output.Length);
+
+                        //Children of this node will become a new compiled sub-doc
+                        var looper = _pagetype.GetMethod(name);
+                        var chunk = new EnumerablePageChunk();
+                        chunk.Function = looper;
+
+                        var subChunks = new ChunkList();
+                        var subText = new StringBuilder();
+                        CompileDoc(subChunks, node.FirstChild, subText);
+
+                        if (subText.Length > 0) //Dump any pending chunks
+                        {
+                            _curChunk.Data = subText.ToString();
+                            subChunks.AddLast(_curChunk);
+                            _curChunk = new StaticPageChunk();
+                        }
+
+                        chunk.Subdoc = new CompiledPage(subChunks);
+                        chunks.AddLast(chunk);
+                    }
+                }
+                else if (node is XmlCDataSection)
+                {
+                    output.Append(Environment.NewLine);
+                    output.Append(node.InnerText);
+                    output.Append(Environment.NewLine);
+                }
+                else
+                {
+                    if (node.HasChildNodes)
+                    {
+                        string nodeName = node.LocalName;
+                        FormatNode(node, output);
+                        CompileDoc(chunks, node.FirstChild, output);
+                        output.AppendFormat("</{0}>", nodeName);
+                    }
+                    else
+                    {
+                        FormatNode(node, output);
+                    }
+                }
+
+                node = node.NextSibling;
+            } while (node != null);
+        }
+
+        private void FormatNode(XmlNode node, StringBuilder output)
+        {
+            if (node is XmlComment) //Parse out comments from page output
+            {
+                if (node.Value.ToLower().StartsWith("[if")) //Render condition comments
+                {
+                    output.Append(Environment.NewLine);
+                    output.AppendFormat("<!--{0}-->", node.Value);
+                    output.Append(Environment.NewLine);
+                }
+
+                return;
             }
 
-            return;
-         }
+            output.Append(Environment.NewLine);
+            output.AppendFormat("<{0}", node.LocalName);
 
-         output.Append(Environment.NewLine);
-         output.AppendFormat("<{0}", node.LocalName);
+            if (node.Attributes != null && node.Attributes.Count > 0)
+                foreach (XmlAttribute att in node.Attributes)
+                {
+                    string name = att.Name;
+                    string value = att.Value;
 
-         if (node.Attributes != null && node.Attributes.Count > 0)
-         {
-            foreach (XmlAttribute att in node.Attributes)
+                    if (cdnMatch.IsMatch(name)) //Insert CDN prefix if available
+                    {
+                        name = cdnMatch.Replace(name, String.Empty);
+                        value = cdnPrefix + value; //Note: If no prefix is configured, this will just no-op
+
+                        if (ImpMiddleware.OnBuildCdnPath != null) value = ImpMiddleware.OnBuildCdnPath(value);
+                    }
+
+                    output.AppendFormat(" {0}=\"{1}\"", name, value);
+                }
+
+            if (node.HasChildNodes)
             {
-               string name = att.Name;
-               string value = att.Value;
-
-               if (cdnMatch.IsMatch(name)) //Insert CDN prefix if available
-               {
-                  name = cdnMatch.Replace(name, String.Empty);
-                  value = cdnPrefix + value; //Note: If no prefix is configured, this will just no-op
-
-                  if (Handler.OnBuildCdnPath != null)
-                  {
-                     value = Handler.OnBuildCdnPath(value);
-                  }
-               }
-
-               output.AppendFormat(" {0}=\"{1}\"", name, value);
-            }
-         }
-
-         if (node.HasChildNodes)
-         {
-            output.Append(">");
-         } 
-         else
-         {
-            if (node.OuterXml.EndsWith("</" + node.LocalName + ">")) //HACK: Some tags such as <Script> and <IFrame> require explicit closing tags otherwise page doesn't render
-            {
-               output.Append("></" + node.LocalName + ">");
+                output.Append(">");
             }
             else
             {
-               output.Append(" />");
+                if (node.OuterXml.EndsWith("</" + node.LocalName + ">")) //HACK: Some tags such as <Script> and <IFrame> require explicit closing tags otherwise page doesn't render
+                    output.Append("></" + node.LocalName + ">");
+                else
+                    output.Append(" />");
             }
-         }
-      }
-   }
+        }
+    }
 }

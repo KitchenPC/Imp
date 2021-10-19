@@ -1,23 +1,23 @@
 ﻿using System;
-using System.Xml;
-using System.Web;
 using System.Reflection;
+using System.Xml;
+using Microsoft.AspNetCore.Http;
 
 namespace Imp
 {
-   public interface ITemplateManager
-   {
-      String GetPageTemplate(Type pagetype);
-      XmlDocument GetTemplate(string resname);
-      Assembly Assembly { get; set; }
-   }
+    public interface ITemplateManager
+    {
+        Assembly Assembly { get; set; }
+        String GetPageTemplate(Type pagetype);
+        XmlDocument GetTemplate(string resname);
+    }
 
-   public interface IPostable
-   {
-      void Postback(HttpResponse response);
-   }
+    public interface IPostable
+    {
+        void Postback(HttpResponse response);
+    }
 
-   internal interface IPageChunk
-   {
-   }
+    internal interface IPageChunk
+    {
+    }
 }

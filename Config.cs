@@ -1,54 +1,67 @@
-﻿using System;
-using System.Configuration;
+﻿/**************
+.UseImp<MyPages>()
+
+or
+
+.UseImp<MyPages>(ImpConfiguration
+.NotFoundType<NotFoundPage>()
+.RootPageNamespace("ConsoleTest.Pages")
+.RootTemplateNamespace("ConsoleTest.Templates")
+.CDNPrefix("cnd.domain.com")
+);
+
+Overloads to get strings with a delegate instead
+Or a .FromConfiguration which takes an IImpConfiguration instance
+NotFoundType could potentially be found by looking for attributes in assembly
+- error out if more than one is found, or just use first one
+Any way to avoid using a string for namespaces?
+**************/
+
+using System;
+using System.Reflection;
 
 namespace Imp.Config
 {
-   public class SectionHandler : ConfigurationSection
-   {
-      internal const string ConfigSectionName = "Imp";
+    public class ImpConfiguration
+    {
+        internal Assembly pageAssembly { get; private set; }
+        internal Type notFoundPageType { get; private set; }
+        internal string rootPageNamespace { get; private set; }
+        internal string rootTemplateNamespace { get; private set; }
+        internal string cdnPrefix { get; private set; }
 
-      [ConfigurationProperty("PageAssemblyName", IsRequired = false)]
-      public string PageAssemblyName
-      {
-         get { return (String)this["PageAssemblyName"]; }
-         set { this["PageAssemblyName"] = value; }
-      }
+        internal ImpConfiguration()
+        {
+        }
 
-      [ConfigurationProperty("NotFoundPageType", IsRequired = false)]
-      public String NotFoundPageType
-      {
-         get { return (String)this["NotFoundPageType"]; }
-         set { this["NotFoundPageType"] = value; }
-      }
+        public ImpConfiguration PageAssembly(Assembly assembly)
+        {
+            pageAssembly = assembly;
+            return this;
+        }
 
-      [ConfigurationProperty("RootPageNamespace", IsRequired = true)]
-      public String RootPageNamespace
-      {
-         get { return (String)this["RootPageNamespace"]; }
-         set { this["RootPageNamespace"] = value; }
-      }
+        public ImpConfiguration NotFoundPageType<T>()
+        {
+            notFoundPageType = typeof(T);
+            return this;
+        }
 
-      [ConfigurationProperty("RootTemplateNamespace", IsRequired = false)]
-      public String RootTemplateNamespace
-      {
-         get { return (String)this["RootTemplateNamespace"]; }
-         set { this["RootTemplateNamespace"] = value; }
-      }
+        public ImpConfiguration RootPageNamespace(string value)
+        {
+            rootPageNamespace = value;
+            return this;
+        }
 
-      [ConfigurationProperty("CDNPrefix", IsRequired = false)]
-      public String CDNPrefix
-      {
-         get { return (String)this["CDNPrefix"]; }
-         set { this["CDNPrefix"] = value; }
-      }
+        public ImpConfiguration RootTemplateNamespace(string value)
+        {
+            rootTemplateNamespace = value;
+            return this;
+        }
 
-      public SectionHandler()
-      {
-      }
-
-      public SectionHandler(String attribVal)
-      {
-         NotFoundPageType = attribVal;
-      }
-   }
+        public ImpConfiguration CdnPrefix(string value)
+        {
+            cdnPrefix = value;
+            return this;
+        }
+    }
 }

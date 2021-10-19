@@ -1,284 +1,216 @@
 ﻿using System;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using System.Web;
-
-using Imp.Config;
+using Microsoft.AspNetCore.Http;
 
 namespace Imp
 {
-   /// <summary>
-   /// Creates Page instances based on incoming URL requests.
-   /// </summary>
-   public static class Request
-   {
-      private static BasePage _notFound;
-      private static BasePage NotFoundPage
-      {
-         get
-         {
-            if (_notFound != null)
-               return _notFound;
+    /// <summary>
+    ///     Creates Page instances based on incoming URL requests.
+    /// </summary>
+    public class Request
+    {
+        private readonly ImpMiddleware _middleware;
+        private static BasePage _notFound;
 
-            SectionHandler config = (SectionHandler)System.Configuration.ConfigurationManager.GetSection(Config.SectionHandler.ConfigSectionName);
-            BasePage page = CreatePageInstanceFromType(config.NotFoundPageType);
-            if (page != null)
+        internal Request(ImpMiddleware middleware)
+        {
+            this._middleware = middleware;
+        }
+
+        private BasePage NotFoundPage
+        {
+            get
             {
-               _notFound = page;
-               return page;
+                if (_notFound != null)
+                    return _notFound;
+
+                var page = CreatePageInstanceFromType(_middleware.NotFoundType);
+                if (page != null)
+                {
+                    _notFound = page;
+                    return page;
+                }
+
+                //Could not create configured NotFound page, use build-in one
+                _notFound = new NotFoundPage();
+                return _notFound;
+            }
+        }
+
+        public BasePage CreatePageObject(HttpRequest request)
+        {
+            //Parse URL to create namespace of object type
+            string path = request.Path.Value
+                .ToLower()
+                .Trim('/')
+                .Replace('/', '.');
+
+            string typename = String.IsNullOrWhiteSpace(path) ? "Default" : path;
+            if(!String.IsNullOrWhiteSpace(_middleware.RootPageNamespace))
+            {
+                typename = $"{_middleware.RootPageNamespace}.{typename}";
             }
 
-            //Could not create configured NotFound page, use build-in one
-            _notFound = new Imp.NotFoundPage();
-            return _notFound;
-         }
-      }
+            var ret = CreatePageInstanceFromType(typename);
+            if (ret != null)
+            {
+                ret.Request = request;
+                InitializeParameters(request, ret);
+                return ret;
+            }
 
-      private static string _rootNamespace;
-      private static string RootNamespace
-      {
-         get
-         {
-            if (_rootNamespace != null)
-               return _rootNamespace;
-
-            SectionHandler config = (SectionHandler)System.Configuration.ConfigurationManager.GetSection(Config.SectionHandler.ConfigSectionName);
-            _rootNamespace = config.RootPageNamespace;
-            
-            return _rootNamespace;
-         }
-      }
-
-      public static BasePage CreatePageObject(HttpRequest request)
-      {
-         //Parse URL to create namespace of object type
-         string appPath = request.ApplicationPath.ToLower();
-         string path = request.Path.ToLower();
-         string url = path;
-
-         if (Regex.Match(url, @"/.*/default.html").Success) //HACKHACK: IIS6 puts default.html at the end of /subdir/
-            url = url.Replace("/default.html", "/");
-
-         if (url == "/") //HACKHACK: Need default document for IIS6 (though this should probably be made to work)
-            url = "/default.html";
-
-         if (appPath != "/") //Site running in virtual directory
-         {
-            url = path.Replace(appPath + "/", String.Empty);
-         }
-         else if(url.StartsWith("/")) //Chop off starting /
-         {
-            url = url.Substring(1);
-         }
-
-         string typename;
-         if (url.EndsWith("/")) //Last directory acts as a page name
-         {
-            typename = String.Format("{0}.{1}",
-               RootNamespace,
-               url.TrimEnd('/')
-               );
-         }
-         else //Use document as page name
-         {
-            typename = String.Format("{0}.{1}",
-               RootNamespace,
-               url.Substring(0, url.LastIndexOf('.')).Replace('/', '.')
-               );
-         }
-
-         BasePage ret = CreatePageInstanceFromType(typename);
-         if (ret != null)
-         {
-            ret.Request = request;
-            InitializeParameters(request, ret);
-            return ret;
-         }
-         else
-         {
             //Fire NotFound event
-            if (Handler.OnNotFound != null)
+            if (ImpMiddleware.OnNotFound != null)
             {
-               ret = Handler.OnNotFound(request);
-               if (ret != null)
-               {
-                  InitializeParameters(request, ret);
-               }
+                ret = ImpMiddleware.OnNotFound(request);
+                if (ret != null) InitializeParameters(request, ret);
 
-               return ret;
+                return ret;
             }
-         }
 
-         return NotFoundPage;
-      }
+            return NotFoundPage;
+        }
 
-      private static BasePage CreatePageInstanceFromType(string typename)
-      {
-         string fqtype = String.IsNullOrEmpty(Handler.PageAssemblyName) ? typename : String.Format("{0}, {1}", typename, Handler.PageAssemblyName);
+        private BasePage CreatePageInstanceFromType(string typename)
+        {
+            string fqtype = String.IsNullOrEmpty(_middleware.PageAssemblyName) ? typename : $"{typename}, {_middleware.PageAssemblyName}";
+            var pageType = Type.GetType(fqtype, false, true);
 
-         Type pageType = Type.GetType(fqtype, false, true);
-         if (pageType == null)
-         {
+            return CreatePageInstanceFromType(pageType);
+        }
+
+        private static BasePage CreatePageInstanceFromType(Type pageType)
+        {
+            if (pageType == null) return null;
+
+            var constructor = pageType.GetConstructor(new Type[0]);
+            var page = constructor?.Invoke(null);
+            var ret = page as BasePage;
+
+            return ret;
+        }
+
+        private static void InitializeParameters(HttpRequest request, BasePage page)
+        {
+            var pageType = page.GetType();
+            foreach (string param in request.Query.Keys)
+            {
+                if (String.IsNullOrEmpty(param)) continue;
+
+                var prop = pageType.GetProperty(param);
+                if (prop == null) continue;
+
+                string sVal = request.Query[param];
+                if (prop.CanWrite)
+                {
+                    var val = ParseParameter(prop, sVal);
+                    if (val != null) prop.SetValue(page, val, null);
+                }
+            }
+        }
+
+        private static object ParseParameter(PropertyInfo property, string value)
+        {
+            if (property.PropertyType == typeof(String)) return value;
+
+            if (property.PropertyType == typeof(Guid) || property.PropertyType == typeof(Guid?))
+                try
+                {
+                    var val = new Guid(value);
+                    return val;
+                }
+                catch (FormatException)
+                {
+                }
+
+            if (property.PropertyType == typeof(Boolean) || property.PropertyType == typeof(Boolean?))
+            {
+                if (Boolean.TryParse(value, out bool val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Int32) || property.PropertyType == typeof(Int32?))
+            {
+                if (Int32.TryParse(value, out int val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Byte) || property.PropertyType == typeof(Byte?))
+            {
+                if (Byte.TryParse(value, out byte val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Char) || property.PropertyType == typeof(Char?))
+            {
+                if (Char.TryParse(value, out char val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
+            {
+                if (DateTime.TryParse(value, out var val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Decimal) || property.PropertyType == typeof(Decimal?))
+            {
+                if (Decimal.TryParse(value, out decimal val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Double) || property.PropertyType == typeof(Double?))
+            {
+                if (Double.TryParse(value, out double val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Int16) || property.PropertyType == typeof(Int16?))
+            {
+                if (Int16.TryParse(value, out short val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Int64) || property.PropertyType == typeof(Int64?))
+            {
+                if (Int64.TryParse(value, out long val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(SByte) || property.PropertyType == typeof(SByte?))
+            {
+                if (SByte.TryParse(value, out sbyte val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(Single) || property.PropertyType == typeof(Single?))
+            {
+                if (Single.TryParse(value, out float val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(UInt16) || property.PropertyType == typeof(UInt16?))
+            {
+                if (UInt16.TryParse(value, out ushort val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(UInt32) || property.PropertyType == typeof(UInt32?))
+            {
+                if (UInt32.TryParse(value, out uint val))
+                    return val;
+            }
+
+            if (property.PropertyType == typeof(UInt64) || property.PropertyType == typeof(UInt64?))
+            {
+                if (UInt64.TryParse(value, out ulong val))
+                    return val;
+            }
+
+            if (property.PropertyType.IsEnum && Enum.IsDefined(property.PropertyType, value)) return Enum.Parse(property.PropertyType, value);
+
             return null;
-         }
-
-         ConstructorInfo constructor = pageType.GetConstructor(new Type[0]);
-         object page = constructor.Invoke(null);
-         BasePage ret = page as BasePage;
-
-         return ret;
-      }
-
-      private static void InitializeParameters(HttpRequest request, BasePage page)
-      {
-         Type pageType = page.GetType();
-         foreach (string param in request.QueryString.AllKeys)
-         {
-            if (String.IsNullOrEmpty(param))
-            {
-               continue;
-            }
-
-            PropertyInfo prop = pageType.GetProperty(param);
-            if (prop == null)
-            {
-               continue;
-            }
-
-            string sVal = request.QueryString[param];
-            if (prop.CanWrite)
-            {
-               object val = ParseParameter(prop, sVal);
-               if (val != null)
-               {
-                  prop.SetValue(page, val, null);
-               }
-            }
-         }
-      }
-
-      private static object ParseParameter(PropertyInfo property, string value)
-      {
-         if (property.PropertyType == typeof(System.String))
-         {
-            return value;
-         }
-
-         if (property.PropertyType == typeof(System.Guid) || property.PropertyType == typeof(System.Guid?))
-         {
-            try
-            {
-               Guid val = new Guid(value);
-               return val;
-            }
-            catch (FormatException) { }
-         }
-
-         if (property.PropertyType == typeof(System.Boolean) || property.PropertyType == typeof(System.Boolean?))
-         {
-            bool val;
-            if (Boolean.TryParse(value, out val))
-               return val;
-
-         }
-
-         if (property.PropertyType == typeof(System.Int32) || property.PropertyType == typeof(System.Int32?))
-         {
-            int val;
-            if (Int32.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.Byte) || property.PropertyType == typeof(System.Byte?))
-         {
-            byte val;
-            if (Byte.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.Char) || property.PropertyType == typeof(System.Char?))
-         {
-            Char val;
-            if (Char.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.DateTime) || property.PropertyType == typeof(System.DateTime?))
-         {
-            DateTime val;
-            if (DateTime.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.Decimal) || property.PropertyType == typeof(System.Decimal?))
-         {
-            Decimal val;
-            if (Decimal.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.Double) || property.PropertyType == typeof(System.Double?))
-         {
-            Double val;
-            if (Double.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.Int16) || property.PropertyType == typeof(System.Int16?))
-         {
-            Int16 val;
-            if (Int16.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.Int64) || property.PropertyType == typeof(System.Int64?))
-         {
-            Int64 val;
-            if (Int64.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.SByte) || property.PropertyType == typeof(System.SByte?))
-         {
-            SByte val;
-            if (SByte.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.Single) || property.PropertyType == typeof(System.Single?))
-         {
-            Single val;
-            if (Single.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.UInt16) || property.PropertyType == typeof(System.UInt16?))
-         {
-            UInt16 val;
-            if (UInt16.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.UInt32) || property.PropertyType == typeof(System.UInt32?))
-         {
-            UInt32 val;
-            if (UInt32.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType == typeof(System.UInt64) || property.PropertyType == typeof(System.UInt64?))
-         {
-            UInt64 val;
-            if (UInt64.TryParse(value, out val))
-               return val;
-         }
-
-         if (property.PropertyType.IsEnum && Enum.IsDefined(property.PropertyType, value))
-         {
-            return Enum.Parse(property.PropertyType, value);
-         }
-
-         return null;
-      }
-   }
+        }
+    }
 }
