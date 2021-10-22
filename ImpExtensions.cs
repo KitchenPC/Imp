@@ -1,5 +1,4 @@
 ﻿using System;
-using Imp.Config;
 using Microsoft.AspNetCore.Builder;
 
 namespace Imp

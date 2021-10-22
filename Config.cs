@@ -20,7 +20,7 @@ Any way to avoid using a string for namespaces?
 using System;
 using System.Reflection;
 
-namespace Imp.Config
+namespace Imp
 {
     public class ImpConfiguration
     {

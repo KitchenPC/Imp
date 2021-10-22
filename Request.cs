@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Imp
 {
@@ -10,35 +10,34 @@ namespace Imp
     /// </summary>
     public class Request
     {
-        private readonly ImpMiddleware _middleware;
-        private static BasePage _notFound;
+        private readonly ImpMiddleware middleware;
+        private static BasePage notFound;
 
         internal Request(ImpMiddleware middleware)
         {
-            this._middleware = middleware;
+            this.middleware = middleware;
         }
 
-        private BasePage NotFoundPage
+        private BasePage NotFoundPage(IServiceProvider serviceProvider)
         {
-            get
+            if (notFound != null)
             {
-                if (_notFound != null)
-                    return _notFound;
-
-                var page = CreatePageInstanceFromType(_middleware.NotFoundType);
-                if (page != null)
-                {
-                    _notFound = page;
-                    return page;
-                }
-
-                //Could not create configured NotFound page, use build-in one
-                _notFound = new NotFoundPage();
-                return _notFound;
+                return notFound;
             }
+
+            var page = CreatePageInstanceFromType(middleware.NotFoundType, serviceProvider);
+            if (page != null)
+            {
+                notFound = page;
+                return page;
+            }
+
+            //Could not create configured NotFound page, use build-in one
+            notFound = new NotFoundPage();
+            return notFound;
         }
 
-        public BasePage CreatePageObject(HttpRequest request)
+        public BasePage CreatePageObject(HttpRequest request, IServiceProvider serviceProvider)
         {
             //Parse URL to create namespace of object type
             string path = request.Path.Value
@@ -47,12 +46,12 @@ namespace Imp
                 .Replace('/', '.');
 
             string typename = String.IsNullOrWhiteSpace(path) ? "Default" : path;
-            if(!String.IsNullOrWhiteSpace(_middleware.RootPageNamespace))
+            if (!String.IsNullOrWhiteSpace(middleware.RootPageNamespace))
             {
-                typename = $"{_middleware.RootPageNamespace}.{typename}";
+                typename = $"{middleware.RootPageNamespace}.{typename}";
             }
 
-            var ret = CreatePageInstanceFromType(typename);
+            var ret = CreatePageInstanceFromType(typename, serviceProvider);
             if (ret != null)
             {
                 ret.Request = request;
@@ -69,24 +68,25 @@ namespace Imp
                 return ret;
             }
 
-            return NotFoundPage;
+            return NotFoundPage(serviceProvider);
         }
 
-        private BasePage CreatePageInstanceFromType(string typename)
+        private BasePage CreatePageInstanceFromType(string typename, IServiceProvider serviceProvider)
         {
-            string fqtype = String.IsNullOrEmpty(_middleware.PageAssemblyName) ? typename : $"{typename}, {_middleware.PageAssemblyName}";
+            string fqtype = String.IsNullOrEmpty(middleware.PageAssemblyName) ? typename : $"{typename}, {middleware.PageAssemblyName}";
             var pageType = Type.GetType(fqtype, false, true);
 
-            return CreatePageInstanceFromType(pageType);
+            return CreatePageInstanceFromType(pageType, serviceProvider);
         }
 
-        private static BasePage CreatePageInstanceFromType(Type pageType)
+        private static BasePage CreatePageInstanceFromType(Type pageType, IServiceProvider serviceProvider)
         {
-            if (pageType == null) return null;
-
-            var constructor = pageType.GetConstructor(new Type[0]);
-            var page = constructor?.Invoke(null);
-            var ret = page as BasePage;
+            if (pageType == null)
+            {
+                return null;
+            }
+            
+            var ret = ActivatorUtilities.CreateInstance(serviceProvider, pageType) as BasePage;
 
             return ret;
         }

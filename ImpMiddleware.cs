@@ -15,7 +15,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
-using Imp.Config;
 using Imp.TemplateManagers;
 using log4net;
 using Microsoft.AspNetCore.Http;
@@ -68,16 +67,16 @@ namespace Imp
             httpContext.Response.StatusCode = 200;
 
             Request request = new Request(this);
-            var page = request.CreatePageObject(httpContext.Request);
+            var page = request.CreatePageObject(httpContext.Request, httpContext.RequestServices);
             log.InfoFormat("Creating Page Type: {0}", page.GetType().FullName);
             page.SetHandler(this);
 
             //If secure page, authenticate first
-            var att = page.GetType().GetCustomAttributes(typeof(SecurePageAttribute), false);
-            if (att.Length > 0 && att[0] is SecurePageAttribute)
-                if (Authenticate != null)
-                    if (Authenticate(httpContext, page) == false)
-                        return;
+            object[] att = page.GetType().GetCustomAttributes(typeof(SecurePageAttribute), false);
+            if (att.Length > 0 && att[0] is SecurePageAttribute && Authenticate != null && Authenticate(httpContext, page) == false)
+            {
+                return;
+            }
 
             OnPreRender?.Invoke(httpContext.Request, httpContext.Response);
 
