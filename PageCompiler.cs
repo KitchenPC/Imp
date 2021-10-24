@@ -57,7 +57,7 @@ namespace Imp
 
     internal delegate Task DynamicContentPtr(TextWriter output, DynamicContentArgs args);
 
-    internal delegate IEnumerable EnumerableContentPtr();
+    internal delegate IEnumerable EnumerableContentPtr(); // TODO: Support async enumerables?
 
     internal class StaticPageChunk : IPageChunk
     {
@@ -292,14 +292,15 @@ namespace Imp
                         if (method == null) throw new PageMethodNotFoundException(name);
 
                         //Test delegate creation now so we don't have to worry about errors at render time
-                        try
-                        {
-                            _pagetype.GetConstructor(new Type[0]).Invoke(null);
-                        }
-                        catch (Exception)
-                        {
-                            throw new PageMethodBindingException(name);
-                        }
+                        // TODO: Fix this again, we need a ServiceProvider to create a page type
+                        // try
+                        // {
+                        //     _pagetype.GetConstructor(new Type[0]).Invoke(null);
+                        // }
+                        // catch (Exception)
+                        // {
+                        //     throw new PageMethodBindingException(name);
+                        // }
 
                         var chunk = new DynamicPageChunk
                         {

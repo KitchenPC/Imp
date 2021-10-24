@@ -57,11 +57,10 @@ namespace Imp
                 Assembly = config.pageAssembly
             }; 
         }
-        
-        public async Task InvokeAsync(HttpContext httpContext)
+
+        private async Task RenderHtml(HttpContext httpContext)
         {
             var isAuth = httpContext.User.Identity.IsAuthenticated;
-            log.Info($"Request for {httpContext.Request.Path} received ({httpContext.Request.ContentLength ?? 0} bytes)");
 
             httpContext.Response.ContentType = "text/html";
             httpContext.Response.StatusCode = 200;
@@ -102,6 +101,29 @@ namespace Imp
                 {
                     await page.Render(httpContext.Response);
                 }
+            }            
+        }
+
+        private async Task RenderProxy(HttpContext httpContext)
+        {
+            httpContext.Response.ContentType = "text/javascript";
+            httpContext.Response.StatusCode = 200;
+
+            await _config.ProxyRendering.RenderProxy(httpContext.Response);
+        }
+        
+        public async Task InvokeAsync(HttpContext httpContext)
+        {
+            log.Info($"Request for {httpContext.Request.Path} received ({httpContext.Request.ContentLength ?? 0} bytes)");
+            bool? proxy = httpContext.Request.Path.Value?.Equals("/proxy/js", StringComparison.InvariantCultureIgnoreCase);
+
+            if (_config.ProxyRendering != null && proxy.GetValueOrDefault())
+            {
+                await RenderProxy(httpContext);
+            }
+            else
+            {
+                await RenderHtml(httpContext);
             }
 
             // BUGBUG: This seems to mess up the stream somehow
