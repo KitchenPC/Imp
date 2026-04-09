@@ -2,13 +2,13 @@
 
 namespace Imp.TemplateManagers
 {
-    public class PageTemplateAttribute : Attribute
-    {
-        public PageTemplateAttribute(string resource)
-        {
-            Resource = resource;
-        }
+   public class PageTemplateAttribute : Attribute
+   {
+      public PageTemplateAttribute(string resource)
+      {
+         Resource = resource;
+      }
 
-        public string Resource { get; set; }
-    }
+      public string Resource { get; set; }
+   }
 }

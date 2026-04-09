@@ -21,113 +21,127 @@ using Microsoft.AspNetCore.Http;
 
 namespace Imp
 {
-    public class ImpMiddleware
-    {
-        private static readonly ILog log = LogManager.GetLogger(typeof(ImpMiddleware));
+   public class ImpMiddleware
+   {
+      private static readonly ILog log = LogManager.GetLogger(typeof(ImpMiddleware));
 
-        public delegate bool AuthenticateLogonCallback(HttpContext context, BasePage page);
-        public delegate string CdnResolutionEvent(string url);
-        public delegate BasePage NotFoundCallback(HttpRequest request);
-        public delegate void PageCycleEvent(HttpRequest request, HttpResponse response);
+      public delegate bool AuthenticateLogonCallback(HttpContext context, BasePage page);
+      public delegate string CdnResolutionEvent(string url);
+      public delegate BasePage NotFoundCallback(HttpRequest request);
+      public delegate void PageCycleEvent(HttpRequest request, HttpResponse response);
 
-        private static readonly ConcurrentDictionary<Type, CompiledPage> PageCache = new ConcurrentDictionary<Type, CompiledPage>();
-        private readonly ITemplateManager _templateManager;
-        private readonly RequestDelegate _next;
-        private readonly ImpConfiguration _config;
+      private static readonly ConcurrentDictionary<Type, CompiledPage> PageCache =
+         new ConcurrentDictionary<Type, CompiledPage>();
+      private readonly ITemplateManager _templateManager;
+      private readonly RequestDelegate _next;
+      private readonly ImpConfiguration _config;
 
-        public static NotFoundCallback OnNotFound { get; set; }
-        public static CdnResolutionEvent OnBuildCdnPath { get; set; }
-        public static PageCycleEvent OnPreRender { get; set; }
-        public static AuthenticateLogonCallback Authenticate { get; set; }
+      public static NotFoundCallback OnNotFound { get; set; }
+      public static CdnResolutionEvent OnBuildCdnPath { get; set; }
+      public static PageCycleEvent OnPreRender { get; set; }
+      public static AuthenticateLogonCallback Authenticate { get; set; }
 
-        public string PageAssemblyName => _config.pageAssembly?.FullName; //TODO: Should just return Assembly type
-        public Type NotFoundType => _config.notFoundPageType;
-        public string RootPageNamespace => _config.rootPageNamespace;
-        public string RootTemplateNamespace => _config.rootTemplateNamespace;
-        public string CdnPrefix => _config.cdnPrefix;
+      public string PageAssemblyName => _config.pageAssembly?.FullName; //TODO: Should just return Assembly type
+      public Type NotFoundType => _config.notFoundPageType;
+      public string RootPageNamespace => _config.rootPageNamespace;
+      public string RootTemplateNamespace => _config.rootTemplateNamespace;
+      public string CdnPrefix => _config.cdnPrefix;
 
-        public ImpMiddleware(RequestDelegate next, ImpConfiguration config)
-        {
-            _next = next;
-            _config = config;
+      public ImpMiddleware(RequestDelegate next, ImpConfiguration config)
+      {
+         _next = next;
+         _config = config;
 
-            //TODO: Should be able to configure this in Configuration file
-            _templateManager = new ResourceTemplateManager(this)
+         //TODO: Should be able to configure this in Configuration file
+         _templateManager = new ResourceTemplateManager(this) { Assembly = config.pageAssembly };
+      }
+
+      private async Task RenderHtml(HttpContext httpContext)
+      {
+         var isAuth = httpContext.User.Identity.IsAuthenticated;
+
+         httpContext.Response.ContentType = "text/html";
+         httpContext.Response.StatusCode = 200;
+
+         Request request = new Request(this);
+         var page = request.CreatePageObject(httpContext.Request, httpContext.RequestServices);
+         log.InfoFormat("Creating Page Type: {0}", page.GetType().FullName);
+         page.SetHandler(this);
+
+         //If secure page, authenticate first
+         object[] att = page.GetType().GetCustomAttributes(typeof(SecurePageAttribute), false);
+         if (
+            att.Length > 0
+            && att[0] is SecurePageAttribute
+            && Authenticate != null
+            && Authenticate(httpContext, page) == false
+         )
+         {
+            return;
+         }
+
+         OnPreRender?.Invoke(httpContext.Request, httpContext.Response);
+
+         page.PreRender(httpContext.Response);
+
+         if (page is IPostable postable && httpContext.Request.Method == "POST")
+            postable.Postback(httpContext.Response);
+
+         if (PageCache.TryGetValue(page.GetType(), out CompiledPage p))
+         {
+            await p.Render(page, httpContext.Response.Body);
+         }
+         else //Compile page
+         {
+            string template = _templateManager.GetPageTemplate(page.GetType());
+            if (template != null)
             {
-                Assembly = config.pageAssembly
-            }; 
-        }
+               var compiledPage = PageCompiler.Compile(
+                  this,
+                  template,
+                  page.GetType(),
+                  _templateManager
+               );
+               PageCache.TryAdd(page.GetType(), compiledPage);
 
-        private async Task RenderHtml(HttpContext httpContext)
-        {
-            var isAuth = httpContext.User.Identity.IsAuthenticated;
-
-            httpContext.Response.ContentType = "text/html";
-            httpContext.Response.StatusCode = 200;
-
-            Request request = new Request(this);
-            var page = request.CreatePageObject(httpContext.Request, httpContext.RequestServices);
-            log.InfoFormat("Creating Page Type: {0}", page.GetType().FullName);
-            page.SetHandler(this);
-
-            //If secure page, authenticate first
-            object[] att = page.GetType().GetCustomAttributes(typeof(SecurePageAttribute), false);
-            if (att.Length > 0 && att[0] is SecurePageAttribute && Authenticate != null && Authenticate(httpContext, page) == false)
-            {
-                return;
+               await compiledPage.Render(page, httpContext.Response.Body);
             }
-
-            OnPreRender?.Invoke(httpContext.Request, httpContext.Response);
-
-            page.PreRender(httpContext.Response);
-
-            if (page is IPostable postable && httpContext.Request.Method == "POST") postable.Postback(httpContext.Response);
-
-            if (PageCache.TryGetValue(page.GetType(), out CompiledPage p))
+            else //No defined template, call Render method
             {
-                await p.Render(page, httpContext.Response.Body);
+               await page.Render(httpContext.Response);
             }
-            else //Compile page
-            {
-                string template = _templateManager.GetPageTemplate(page.GetType());
-                if (template != null)
-                {
-                    var compiledPage = PageCompiler.Compile(this, template, page.GetType(), _templateManager);
-                    PageCache.TryAdd(page.GetType(), compiledPage);
+         }
+      }
 
-                    await compiledPage.Render(page, httpContext.Response.Body);
-                }
-                else //No defined template, call Render method
-                {
-                    await page.Render(httpContext.Response);
-                }
-            }            
-        }
+      private async Task RenderProxy(HttpContext httpContext)
+      {
+         httpContext.Response.ContentType = "text/javascript";
+         httpContext.Response.StatusCode = 200;
 
-        private async Task RenderProxy(HttpContext httpContext)
-        {
-            httpContext.Response.ContentType = "text/javascript";
-            httpContext.Response.StatusCode = 200;
+         await _config.ProxyRendering.RenderProxy(httpContext.Response);
+      }
 
-            await _config.ProxyRendering.RenderProxy(httpContext.Response);
-        }
-        
-        public async Task InvokeAsync(HttpContext httpContext)
-        {
-            log.Info($"Request for {httpContext.Request.Path} received ({httpContext.Request.ContentLength ?? 0} bytes)");
-            bool? proxy = httpContext.Request.Path.Value?.Equals("/proxy/js", StringComparison.InvariantCultureIgnoreCase);
+      public async Task InvokeAsync(HttpContext httpContext)
+      {
+         log.Info(
+            $"Request for {httpContext.Request.Path} received ({httpContext.Request.ContentLength ?? 0} bytes)"
+         );
+         bool? proxy = httpContext.Request.Path.Value?.Equals(
+            "/proxy/js",
+            StringComparison.InvariantCultureIgnoreCase
+         );
 
-            if (_config.ProxyRendering != null && proxy.GetValueOrDefault())
-            {
-                await RenderProxy(httpContext);
-            }
-            else
-            {
-                await RenderHtml(httpContext);
-            }
+         if (_config.ProxyRendering != null && proxy.GetValueOrDefault())
+         {
+            await RenderProxy(httpContext);
+         }
+         else
+         {
+            await RenderHtml(httpContext);
+         }
 
-            // BUGBUG: This seems to mess up the stream somehow
-            //await _next.Invoke(httpContext);
-        }
-    }
+         // BUGBUG: This seems to mess up the stream somehow
+         //await _next.Invoke(httpContext);
+      }
+   }
 }

@@ -22,53 +22,51 @@ using System.Reflection;
 
 namespace Imp
 {
-    public class ImpConfiguration
-    {
-        internal Assembly pageAssembly { get; private set; }
-        internal Type notFoundPageType { get; private set; }
-        internal IProxyRendering ProxyRendering { get; private set; }
-        internal string rootPageNamespace { get; private set; }
-        internal string rootTemplateNamespace { get; private set; }
-        internal string cdnPrefix { get; private set; }
+   public class ImpConfiguration
+   {
+      internal Assembly pageAssembly { get; private set; }
+      internal Type notFoundPageType { get; private set; }
+      internal IProxyRendering ProxyRendering { get; private set; }
+      internal string rootPageNamespace { get; private set; }
+      internal string rootTemplateNamespace { get; private set; }
+      internal string cdnPrefix { get; private set; }
 
-        internal ImpConfiguration()
-        {
-        }
+      internal ImpConfiguration() { }
 
-        public ImpConfiguration PageAssembly(Assembly assembly)
-        {
-            pageAssembly = assembly;
-            return this;
-        }
+      public ImpConfiguration PageAssembly(Assembly assembly)
+      {
+         pageAssembly = assembly;
+         return this;
+      }
 
-        public ImpConfiguration NotFoundPageType<T>()
-        {
-            notFoundPageType = typeof(T);
-            return this;
-        }
-        
-        public ImpConfiguration ApiType<T>()
-        {
-            ProxyRendering = new ProxyRendering<T>();
-            return this;
-        }
-        
-        public ImpConfiguration RootPageNamespace(string value)
-        {
-            rootPageNamespace = value;
-            return this;
-        }
+      public ImpConfiguration NotFoundPageType<T>()
+      {
+         notFoundPageType = typeof(T);
+         return this;
+      }
 
-        public ImpConfiguration RootTemplateNamespace(string value)
-        {
-            rootTemplateNamespace = value;
-            return this;
-        }
+      public ImpConfiguration ApiType<T>()
+      {
+         ProxyRendering = new ProxyRendering<T>();
+         return this;
+      }
 
-        public ImpConfiguration CdnPrefix(string value)
-        {
-            cdnPrefix = value;
-            return this;
-        }
-    }
+      public ImpConfiguration RootPageNamespace(string value)
+      {
+         rootPageNamespace = value;
+         return this;
+      }
+
+      public ImpConfiguration RootTemplateNamespace(string value)
+      {
+         rootTemplateNamespace = value;
+         return this;
+      }
+
+      public ImpConfiguration CdnPrefix(string value)
+      {
+         cdnPrefix = value;
+         return this;
+      }
+   }
 }
