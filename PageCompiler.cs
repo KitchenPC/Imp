@@ -221,6 +221,7 @@ namespace Imp
       private readonly Stack<XmlNode> _templateStack;
       private readonly Regex cdnMatch;
       private readonly string cdnPrefix;
+      private readonly ImpMiddleware.CdnResolutionEvent onBuildCdnPath;
 
       private StaticPageChunk _curChunk;
 
@@ -233,6 +234,7 @@ namespace Imp
       {
          cdnMatch = new Regex($"^{ET_CDNPREFIX}.", RegexOptions.IgnoreCase);
          cdnPrefix = middleware.CdnPrefix;
+         onBuildCdnPath = middleware.OnBuildCdnPath;
          _pagetype = pagetype;
 
          _templateStack = new Stack<XmlNode>();
@@ -459,8 +461,8 @@ namespace Imp
                   name = cdnMatch.Replace(name, String.Empty);
                   value = cdnPrefix + value; //Note: If no prefix is configured, this will just no-op
 
-                  if (ImpMiddleware.OnBuildCdnPath != null)
-                     value = ImpMiddleware.OnBuildCdnPath(value);
+                  if (onBuildCdnPath != null)
+                     value = onBuildCdnPath(value);
                }
 
                output.AppendFormat(" {0}=\"{1}\"", name, value);

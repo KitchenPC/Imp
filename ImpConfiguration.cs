@@ -19,6 +19,7 @@ Any way to avoid using a string for namespaces?
 
 using System;
 using System.Reflection;
+using static Imp.ImpMiddleware;
 
 namespace Imp
 {
@@ -26,10 +27,13 @@ namespace Imp
    {
       internal Assembly pageAssembly { get; private set; }
       internal Type notFoundPageType { get; private set; }
-      internal IProxyRendering ProxyRendering { get; private set; }
       internal string rootPageNamespace { get; private set; }
       internal string rootTemplateNamespace { get; private set; }
       internal string cdnPrefix { get; private set; }
+      internal NotFoundCallback onNotFound { get; private set; }
+      internal CdnResolutionEvent onBuildCdnPath { get; private set; }
+      internal PageCycleEvent onPreRender { get; private set; }
+      internal AuthenticateLogonCallback authenticate { get; private set; }
 
       internal ImpConfiguration() { }
 
@@ -45,9 +49,27 @@ namespace Imp
          return this;
       }
 
-      public ImpConfiguration ApiType<T>()
+      public ImpConfiguration OnNotFound(NotFoundCallback callback)
       {
-         ProxyRendering = new ProxyRendering<T>();
+         onNotFound = callback;
+         return this;
+      }
+
+      public ImpConfiguration OnBuildCdnPath(CdnResolutionEvent callback)
+      {
+         onBuildCdnPath = callback;
+         return this;
+      }
+
+      public ImpConfiguration OnPreRender(PageCycleEvent callback)
+      {
+         onPreRender = callback;
+         return this;
+      }
+
+      public ImpConfiguration Authenticate(AuthenticateLogonCallback callback)
+      {
+         authenticate = callback;
          return this;
       }
 

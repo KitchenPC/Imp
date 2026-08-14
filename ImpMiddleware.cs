@@ -27,7 +27,7 @@ namespace Imp
 
       public delegate bool AuthenticateLogonCallback(HttpContext context, BasePage page);
       public delegate string CdnResolutionEvent(string url);
-      public delegate BasePage NotFoundCallback(HttpRequest request);
+      public delegate Type NotFoundCallback(HttpRequest request);
       public delegate void PageCycleEvent(HttpRequest request, HttpResponse response);
 
       private static readonly ConcurrentDictionary<Type, CompiledPage> PageCache =
@@ -36,16 +36,15 @@ namespace Imp
       private readonly RequestDelegate _next;
       private readonly ImpConfiguration _config;
 
-      public static NotFoundCallback OnNotFound { get; set; }
-      public static CdnResolutionEvent OnBuildCdnPath { get; set; }
-      public static PageCycleEvent OnPreRender { get; set; }
-      public static AuthenticateLogonCallback Authenticate { get; set; }
-
       public string PageAssemblyName => _config.pageAssembly?.FullName; //TODO: Should just return Assembly type
       public Type NotFoundType => _config.notFoundPageType;
       public string RootPageNamespace => _config.rootPageNamespace;
       public string RootTemplateNamespace => _config.rootTemplateNamespace;
       public string CdnPrefix => _config.cdnPrefix;
+      public NotFoundCallback OnNotFound => _config.onNotFound;
+      public CdnResolutionEvent OnBuildCdnPath => _config.onBuildCdnPath;
+      public PageCycleEvent OnPreRender => _config.onPreRender;
+      public AuthenticateLogonCallback Authenticate => _config.authenticate;
 
       public ImpMiddleware(RequestDelegate next, ImpConfiguration config)
       {
@@ -113,32 +112,12 @@ namespace Imp
          }
       }
 
-      private async Task RenderProxy(HttpContext httpContext)
-      {
-         httpContext.Response.ContentType = "text/javascript";
-         httpContext.Response.StatusCode = 200;
-
-         await _config.ProxyRendering.RenderProxy(httpContext.Response);
-      }
-
       public async Task InvokeAsync(HttpContext httpContext)
       {
          log.Info(
             $"Request for {httpContext.Request.Path} received ({httpContext.Request.ContentLength ?? 0} bytes)"
          );
-         bool? proxy = httpContext.Request.Path.Value?.Equals(
-            "/proxy/js",
-            StringComparison.InvariantCultureIgnoreCase
-         );
-
-         if (_config.ProxyRendering != null && proxy.GetValueOrDefault())
-         {
-            await RenderProxy(httpContext);
-         }
-         else
-         {
-            await RenderHtml(httpContext);
-         }
+         await RenderHtml(httpContext);
 
          // BUGBUG: This seems to mess up the stream somehow
          //await _next.Invoke(httpContext);

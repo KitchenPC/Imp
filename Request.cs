@@ -57,13 +57,16 @@ namespace Imp
          }
 
          //Fire NotFound event
-         if (ImpMiddleware.OnNotFound != null)
+         if (middleware.OnNotFound != null)
          {
-            ret = ImpMiddleware.OnNotFound(request);
+            Type pageType = middleware.OnNotFound(request);
+            ret = CreatePageInstanceFromType(pageType, serviceProvider);
             if (ret != null)
+            {
+               ret.Request = request;
                InitializeParameters(request, ret);
-
-            return ret;
+               return ret;
+            }
          }
 
          return NotFoundPage(serviceProvider);
