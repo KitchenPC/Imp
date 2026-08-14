@@ -10,7 +10,7 @@ namespace Imp
          Action<ImpConfiguration> configurationBuilder = null
       )
       {
-         ImpConfiguration config = new ImpConfiguration();
+         var config = new ImpConfiguration();
          configurationBuilder?.Invoke(config);
 
          return builder.UseMiddleware<ImpMiddleware>(config);

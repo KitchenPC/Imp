@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Xml;
@@ -13,49 +14,49 @@ namespace Imp.TemplateManagers
 
       internal ResourceTemplateManager(ImpMiddleware middleware)
       {
-         this._middleware = middleware;
+         _middleware = middleware;
       }
 
       public String GetPageTemplate(Type pagetype)
       {
          var att = pagetype.GetCustomAttributes(typeof(PageTemplateAttribute), false);
-         if (att.Length > 0 && att[0] is PageTemplateAttribute)
-         {
-            string resource = ((PageTemplateAttribute)att[0]).Resource;
-            return GetResource(resource);
-         }
+         if (att.Length <= 0 || !(att[0] is PageTemplateAttribute))
+            return null;
+         var resource = ((PageTemplateAttribute)att[0]).Resource;
 
-         return null;
+         return GetResource(resource);
       }
 
       public XmlDocument GetTemplate(string resname)
       {
-         string resource = $"{_middleware.RootTemplateNamespace}.{resname}.htm";
-         string template = GetResource(resource);
-         if (String.IsNullOrEmpty(template) == false)
-         {
-            var doc = new XmlDocument();
-            doc.LoadXml(template);
-            return doc;
-         }
+         var resource = $"{_middleware.RootTemplateNamespace}.{resname}.htm";
+         var template = GetResource(resource);
+         if (String.IsNullOrEmpty(template))
+            return null;
+         var doc = new XmlDocument();
+         doc.LoadXml(template);
 
-         return null;
+         return doc;
       }
 
       private string GetResource(string resource)
       {
-         var stream = Assembly.GetManifestResourceStream(resource);
-         if (stream != null)
+         using (var stream = Assembly.GetManifestResourceStream(resource))
          {
-            var bytes = new byte[stream.Length];
-            if (stream.Read(bytes, 0, (int)stream.Length) > 0)
+            if (stream == null)
+               return null;
+
+            using (
+               var reader = new StreamReader(
+                  stream,
+                  Encoding.UTF8,
+                  detectEncodingFromByteOrderMarks: true
+               )
+            )
             {
-               var template = new String(new UTF8Encoding().GetChars(bytes, 3, bytes.Length - 3)); //HACK: Manually strip out BOM cuz it screws up XmlDocument::Load() later on
-               return template;
+               return reader.ReadToEnd();
             }
          }
-
-         return null;
       }
    }
 }

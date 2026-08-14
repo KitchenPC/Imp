@@ -40,10 +40,10 @@ namespace Imp
       public BasePage CreatePageObject(HttpRequest request, IServiceProvider serviceProvider)
       {
          //Parse URL to create namespace of object type
-         string path = request.Path.Value.ToLower().Trim('/').Replace('/', '.');
+         var path = request.Path.Value.ToLower().Trim('/').Replace('/', '.');
 
-         string typename = String.IsNullOrWhiteSpace(path) ? "Default" : path;
-         if (!String.IsNullOrWhiteSpace(middleware.RootPageNamespace))
+         var typename = string.IsNullOrWhiteSpace(path) ? "Default" : path;
+         if (!string.IsNullOrWhiteSpace(middleware.RootPageNamespace))
          {
             typename = $"{middleware.RootPageNamespace}.{typename}";
          }
@@ -57,24 +57,21 @@ namespace Imp
          }
 
          //Fire NotFound event
-         if (middleware.OnNotFound != null)
-         {
-            Type pageType = middleware.OnNotFound(request);
-            ret = CreatePageInstanceFromType(pageType, serviceProvider);
-            if (ret != null)
-            {
-               ret.Request = request;
-               InitializeParameters(request, ret);
-               return ret;
-            }
-         }
+         if (middleware.OnNotFound == null)
+            return NotFoundPage(serviceProvider);
+         var pageType = middleware.OnNotFound(request);
+         ret = CreatePageInstanceFromType(pageType, serviceProvider);
+         if (ret == null)
+            return NotFoundPage(serviceProvider);
+         ret.Request = request;
+         InitializeParameters(request, ret);
 
-         return NotFoundPage(serviceProvider);
+         return ret;
       }
 
       private BasePage CreatePageInstanceFromType(string typename, IServiceProvider serviceProvider)
       {
-         string fqtype = String.IsNullOrEmpty(middleware.PageAssemblyName)
+         var fqtype = string.IsNullOrEmpty(middleware.PageAssemblyName)
             ? typename
             : $"{typename}, {middleware.PageAssemblyName}";
          var pageType = Type.GetType(fqtype, false, true);
@@ -100,9 +97,9 @@ namespace Imp
       private static void InitializeParameters(HttpRequest request, BasePage page)
       {
          var pageType = page.GetType();
-         foreach (string param in request.Query.Keys)
+         foreach (var param in request.Query.Keys)
          {
-            if (String.IsNullOrEmpty(param))
+            if (string.IsNullOrEmpty(param))
                continue;
 
             var prop = pageType.GetProperty(param);
@@ -110,18 +107,17 @@ namespace Imp
                continue;
 
             string sVal = request.Query[param];
-            if (prop.CanWrite)
-            {
-               var val = ParseParameter(prop, sVal);
-               if (val != null)
-                  prop.SetValue(page, val, null);
-            }
+            if (!prop.CanWrite)
+               continue;
+            var val = ParseParameter(prop, sVal);
+            if (val != null)
+               prop.SetValue(page, val, null);
          }
       }
 
       private static object ParseParameter(PropertyInfo property, string value)
       {
-         if (property.PropertyType == typeof(String))
+         if (property.PropertyType == typeof(string))
             return value;
 
          if (property.PropertyType == typeof(Guid) || property.PropertyType == typeof(Guid?))
@@ -132,27 +128,27 @@ namespace Imp
             }
             catch (FormatException) { }
 
-         if (property.PropertyType == typeof(Boolean) || property.PropertyType == typeof(Boolean?))
+         if (property.PropertyType == typeof(bool) || property.PropertyType == typeof(bool?))
          {
-            if (Boolean.TryParse(value, out bool val))
+            if (bool.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(Int32) || property.PropertyType == typeof(Int32?))
+         if (property.PropertyType == typeof(int) || property.PropertyType == typeof(int?))
          {
-            if (Int32.TryParse(value, out int val))
+            if (int.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(Byte) || property.PropertyType == typeof(Byte?))
+         if (property.PropertyType == typeof(byte) || property.PropertyType == typeof(byte?))
          {
-            if (Byte.TryParse(value, out byte val))
+            if (byte.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(Char) || property.PropertyType == typeof(Char?))
+         if (property.PropertyType == typeof(char) || property.PropertyType == typeof(char?))
          {
-            if (Char.TryParse(value, out char val))
+            if (char.TryParse(value, out var val))
                return val;
          }
 
@@ -165,57 +161,57 @@ namespace Imp
                return val;
          }
 
-         if (property.PropertyType == typeof(Decimal) || property.PropertyType == typeof(Decimal?))
+         if (property.PropertyType == typeof(decimal) || property.PropertyType == typeof(decimal?))
          {
-            if (Decimal.TryParse(value, out decimal val))
+            if (decimal.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(Double) || property.PropertyType == typeof(Double?))
+         if (property.PropertyType == typeof(double) || property.PropertyType == typeof(double?))
          {
-            if (Double.TryParse(value, out double val))
+            if (double.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(Int16) || property.PropertyType == typeof(Int16?))
+         if (property.PropertyType == typeof(short) || property.PropertyType == typeof(short?))
          {
-            if (Int16.TryParse(value, out short val))
+            if (short.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(Int64) || property.PropertyType == typeof(Int64?))
+         if (property.PropertyType == typeof(long) || property.PropertyType == typeof(long?))
          {
-            if (Int64.TryParse(value, out long val))
+            if (long.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(SByte) || property.PropertyType == typeof(SByte?))
+         if (property.PropertyType == typeof(sbyte) || property.PropertyType == typeof(sbyte?))
          {
-            if (SByte.TryParse(value, out sbyte val))
+            if (sbyte.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(Single) || property.PropertyType == typeof(Single?))
+         if (property.PropertyType == typeof(float) || property.PropertyType == typeof(float?))
          {
-            if (Single.TryParse(value, out float val))
+            if (float.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(UInt16) || property.PropertyType == typeof(UInt16?))
+         if (property.PropertyType == typeof(ushort) || property.PropertyType == typeof(ushort?))
          {
-            if (UInt16.TryParse(value, out ushort val))
+            if (ushort.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(UInt32) || property.PropertyType == typeof(UInt32?))
+         if (property.PropertyType == typeof(uint) || property.PropertyType == typeof(uint?))
          {
-            if (UInt32.TryParse(value, out uint val))
+            if (uint.TryParse(value, out var val))
                return val;
          }
 
-         if (property.PropertyType == typeof(UInt64) || property.PropertyType == typeof(UInt64?))
+         if (property.PropertyType == typeof(ulong) || property.PropertyType == typeof(ulong?))
          {
-            if (UInt64.TryParse(value, out ulong val))
+            if (ulong.TryParse(value, out var val))
                return val;
          }
 

@@ -1,18 +1,4 @@
-﻿/**********************
- * TODO:
- * -- Fix weird async issue that prevents pipeline from continuing
- * -- Real logging - maybe just have a Trace event with a "Severity" so user can log themselves (log system agnostic)
- * -- Cleanup hacks in CreatePageObject (probably none are needed) and make parsing cleaner
- * -- Investigate build error with NuGet package not compatible with .NET Standard
- * -- General code clean-up
- 
- * -- Unit tests
- * -- NuGet packaging and build process stuff
- * -- Test with other frameworks, such as .NET Full, IIS Express, etc
- *
- */
-
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using Imp.TemplateManagers;
@@ -57,18 +43,18 @@ namespace Imp
 
       private async Task RenderHtml(HttpContext httpContext)
       {
-         var isAuth = httpContext.User.Identity.IsAuthenticated;
+         //var isAuth = httpContext.User.Identity.IsAuthenticated;
 
          httpContext.Response.ContentType = "text/html";
          httpContext.Response.StatusCode = 200;
 
-         Request request = new Request(this);
+         var request = new Request(this);
          var page = request.CreatePageObject(httpContext.Request, httpContext.RequestServices);
          log.InfoFormat("Creating Page Type: {0}", page.GetType().FullName);
          page.SetHandler(this);
 
          //If secure page, authenticate first
-         object[] att = page.GetType().GetCustomAttributes(typeof(SecurePageAttribute), false);
+         var att = page.GetType().GetCustomAttributes(typeof(SecurePageAttribute), false);
          if (
             att.Length > 0
             && att[0] is SecurePageAttribute
@@ -83,16 +69,21 @@ namespace Imp
 
          page.PreRender(httpContext.Response);
 
-         if (page is IPostable postable && httpContext.Request.Method == "POST")
-            postable.Postback(httpContext.Response);
+         if (httpContext.Request.Method == "POST")
+         {
+            if (page is IAsyncPostable asyncPostable)
+               await asyncPostable.PostbackAsync(httpContext.Response);
+            else if (page is IPostable postable)
+               postable.Postback(httpContext.Response);
+         }
 
-         if (PageCache.TryGetValue(page.GetType(), out CompiledPage p))
+         if (PageCache.TryGetValue(page.GetType(), out var p))
          {
             await p.Render(page, httpContext.Response.Body);
          }
          else //Compile page
          {
-            string template = _templateManager.GetPageTemplate(page.GetType());
+            var template = _templateManager.GetPageTemplate(page.GetType());
             if (template != null)
             {
                var compiledPage = PageCompiler.Compile(

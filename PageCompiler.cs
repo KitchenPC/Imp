@@ -167,35 +167,40 @@ namespace Imp
          var cur = _chunks.Head;
          while (cur != null)
          {
-            if (cur.Data is StaticPageChunk staticChunk)
+            switch (cur.Data)
             {
-               await output.WriteAsync(staticChunk.Data);
-            }
-
-            if (cur.Data is DynamicPageChunk dynamicChunk)
-            {
-               var ptr =
-                  Delegate.CreateDelegate(typeof(DynamicContentPtr), page, dynamicChunk.Function)
-                  as DynamicContentPtr;
-
-               await ptr(
-                  output,
-                  loopValue != null ? dynamicChunk.Args.GetLoopArgs(loopValue) : dynamicChunk.Args
-               );
-            }
-
-            if (cur.Data is EnumerablePageChunk loopChunk)
-            {
-               var ptr =
-                  Delegate.CreateDelegate(typeof(EnumerableContentPtr), page, loopChunk.Function)
-                  as EnumerableContentPtr;
-               var e = ptr();
-               if (e != null)
+               case StaticPageChunk staticChunk:
+                  await output.WriteAsync(staticChunk.Data);
+                  break;
+               case DynamicPageChunk dynamicChunk:
                {
-                  foreach (var obj in e)
+                  var ptr =
+                     Delegate.CreateDelegate(typeof(DynamicContentPtr), page, dynamicChunk.Function)
+                     as DynamicContentPtr;
+
+                  await ptr(
+                     output,
+                     loopValue != null
+                        ? dynamicChunk.Args.GetLoopArgs(loopValue)
+                        : dynamicChunk.Args
+                  );
+                  break;
+               }
+               case EnumerablePageChunk loopChunk:
+               {
+                  var ptr =
+                     Delegate.CreateDelegate(typeof(EnumerableContentPtr), page, loopChunk.Function)
+                     as EnumerableContentPtr;
+                  var e = ptr();
+                  if (e != null)
                   {
-                     await loopChunk.Subdoc.Render(page, output, obj);
+                     foreach (var obj in e)
+                     {
+                        await loopChunk.Subdoc.Render(page, output, obj);
+                     }
                   }
+
+                  break;
                }
             }
 
@@ -284,11 +289,10 @@ namespace Imp
             );
 
          CompileDoc(chunks, _doc.DocumentElement.FirstChild, builder);
-         if (builder.Length > 0) //Dump any pending chunks
-         {
-            _curChunk.Data = builder.ToString();
-            chunks.AddLast(_curChunk);
-         }
+         if (builder.Length <= 0)
+            return new CompiledPage(chunks); //Dump any pending chunks
+         _curChunk.Data = builder.ToString();
+         chunks.AddLast(_curChunk);
 
          return new CompiledPage(chunks);
       }
@@ -305,8 +309,8 @@ namespace Imp
             {
                //TODO: Rework "if" logic to parse only Imp commands
                var arrParts = node.LocalName.Split('.');
-               string entityType = arrParts[0];
-               string name = arrParts[1];
+               var entityType = arrParts[0];
+               var name = arrParts[1];
 
                if (entityType == ET_DYNAMIC) //Add dynamic function pointer
                {
@@ -319,17 +323,6 @@ namespace Imp
                   var method = _pagetype.GetMethod(name);
                   if (method == null)
                      throw new PageMethodNotFoundException(name);
-
-                  //Test delegate creation now so we don't have to worry about errors at render time
-                  // TODO: Fix this again, we need a ServiceProvider to create a page type
-                  // try
-                  // {
-                  //     _pagetype.GetConstructor(new Type[0]).Invoke(null);
-                  // }
-                  // catch (Exception)
-                  // {
-                  //     throw new PageMethodBindingException(name);
-                  // }
 
                   var chunk = new DynamicPageChunk
                   {
@@ -418,7 +411,7 @@ namespace Imp
             {
                if (node.HasChildNodes)
                {
-                  string nodeName = node.LocalName;
+                  var nodeName = node.LocalName;
                   FormatNode(node, output);
                   CompileDoc(chunks, node.FirstChild, output);
                   output.AppendFormat("</{0}>", nodeName);
@@ -453,8 +446,8 @@ namespace Imp
          if (node.Attributes != null && node.Attributes.Count > 0)
             foreach (XmlAttribute att in node.Attributes)
             {
-               string name = att.Name;
-               string value = att.Value;
+               var name = att.Name;
+               var value = att.Value;
 
                if (cdnMatch.IsMatch(name)) //Insert CDN prefix if available
                {
