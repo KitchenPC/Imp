@@ -1,5 +1,7 @@
 # Imp
 
+[![Build](https://github.com/KitchenPC/Imp/actions/workflows/build.yml/badge.svg)](https://github.com/KitchenPC/Imp/actions/workflows/build.yml)
+
 Imp (In Memory Pages) is a lightweight page framework built on ASP.NET Core middleware. It maps request paths to .NET classes, creates those classes through ASP.NET Core dependency injection, binds query-string values to page properties, and renders the response. Pages can render HTML directly or use HTML templates embedded in the application's assembly. Embedded templates are compiled once and cached in memory, so no page-template files need to be read from disk while the application is running.
 
 ## Getting started
