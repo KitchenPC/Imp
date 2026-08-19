@@ -4,6 +4,16 @@
 
 Imp (In Memory Pages) is a lightweight page framework built on ASP.NET Core middleware. It maps request paths to .NET classes, creates those classes through ASP.NET Core dependency injection, binds query-string values to page properties, and renders the response. Pages can render HTML directly or use HTML templates embedded in the application's assembly. Embedded templates are compiled once and cached in memory, so no page-template files need to be read from disk while the application is running.
 
+## Building and testing
+
+Restore, build, and run the fast unit-test suite from the repository root:
+
+```bash
+dotnet test
+```
+
+The tests use in-memory request objects and do not start a web server or make network calls.
+
 ## Getting started
 
 Reference the Imp project from an ASP.NET Core application:

@@ -31,7 +31,10 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore dependencies
-        run: dotnet restore Imp.csproj
+        run: dotnet restore Imp.slnx
 
       - name: Build
-        run: dotnet build Imp.csproj --configuration Release --no-restore
+        run: dotnet build Imp.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Imp.slnx --configuration Release --no-restore
