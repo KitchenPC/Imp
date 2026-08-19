@@ -38,3 +38,18 @@ jobs:
 
       - name: Test
         run: dotnet test Imp.slnx --configuration Release --no-restore
+
+      - name: Pack
+        run: >-
+          dotnet pack Imp.csproj
+          --configuration Release
+          --no-build
+          --output artifacts
+          -p:PackageVersion=0.1.0-ci.${{ github.run_number }}
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: KitchenPC.Imp-${{ github.run_number }}
+          path: artifacts/*
+          if-no-files-found: error

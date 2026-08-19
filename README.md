@@ -14,6 +14,23 @@ dotnet test
 
 The tests use in-memory request objects and do not start a web server or make network calls.
 
+Create a local NuGet package and symbol package with:
+
+```bash
+dotnet pack Imp.csproj --configuration Release --output artifacts
+```
+
+## Releasing
+
+Every push and pull request builds, tests, and packs `KitchenPC.Imp` for validation. NuGet publication is intentionally separate and only runs for version tags. To publish a configured release, create and push a tag matching the package version:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Package versions on NuGet are immutable. Never reuse a release tag or version; increment the version for each subsequent release.
+
 ## Getting started
 
 Reference the Imp project from an ASP.NET Core application:
