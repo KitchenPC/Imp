@@ -5,6 +5,8 @@
 
 Imp (In Memory Pages) is a lightweight page framework built on ASP.NET Core middleware. It maps request paths to .NET classes, creates pages through dependency injection, binds query-string values to page properties, and renders responses directly or through embedded XML templates.
 
+Imp supports the actively maintained .NET 8 and .NET 10 LTS releases.
+
 ## The idea in one example
 
 Given this page class:

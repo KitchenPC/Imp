@@ -1,12 +1,14 @@
 <Project Sdk="MSTest.Sdk/4.3.3">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
+    <MicrosoftTestingExtensionsCodeCoverageVersion>18.10.0</MicrosoftTestingExtensionsCodeCoverageVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../Imp/Imp.csproj" />
+    <EmbeddedResource Include="PageTemplates/*.htm" />
   </ItemGroup>
 </Project>

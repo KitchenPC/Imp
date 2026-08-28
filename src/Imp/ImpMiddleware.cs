@@ -2,15 +2,14 @@
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using Imp.TemplateManagers;
-using log4net;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Imp
 {
    public class ImpMiddleware
    {
-      private static readonly ILog log = LogManager.GetLogger(typeof(ImpMiddleware));
-
       public delegate bool AuthenticateLogonCallback(HttpContext context, BasePage page);
       public delegate string CdnResolutionEvent(string url);
       public delegate Type NotFoundCallback(HttpRequest request);
@@ -19,8 +18,8 @@ namespace Imp
       private static readonly ConcurrentDictionary<Type, CompiledPage> PageCache =
          new ConcurrentDictionary<Type, CompiledPage>();
       private readonly ITemplateManager _templateManager;
-      private readonly RequestDelegate _next;
       private readonly ImpConfiguration _config;
+      private readonly ILogger<ImpMiddleware> _logger;
 
       public string PageAssemblyName => _config.pageAssembly?.FullName; //TODO: Should just return Assembly type
       public Type NotFoundType => _config.notFoundPageType;
@@ -33,9 +32,17 @@ namespace Imp
       public AuthenticateLogonCallback Authenticate => _config.authenticate;
 
       public ImpMiddleware(RequestDelegate next, ImpConfiguration config)
+         : this(next, config, NullLogger<ImpMiddleware>.Instance) { }
+
+      public ImpMiddleware(
+         RequestDelegate next,
+         ImpConfiguration config,
+         ILogger<ImpMiddleware> logger
+      )
       {
-         _next = next;
+         _ = next ?? throw new ArgumentNullException(nameof(next));
          _config = config;
+         _logger = logger ?? NullLogger<ImpMiddleware>.Instance;
 
          //TODO: Should be able to configure this in Configuration file
          _templateManager = new ResourceTemplateManager(this) { Assembly = config.pageAssembly };
@@ -50,7 +57,7 @@ namespace Imp
 
          var request = new Request(this);
          var page = request.CreatePageObject(httpContext.Request, httpContext.RequestServices);
-         log.InfoFormat("Creating Page Type: {0}", page.GetType().FullName);
+         _logger.LogInformation("Creating page type {PageType}", page.GetType().FullName);
          page.SetHandler(this);
 
          //If secure page, authenticate first
@@ -105,8 +112,10 @@ namespace Imp
 
       public async Task InvokeAsync(HttpContext httpContext)
       {
-         log.Info(
-            $"Request for {httpContext.Request.Path} received ({httpContext.Request.ContentLength ?? 0} bytes)"
+         _logger.LogInformation(
+            "Request for {RequestPath} received ({ContentLength} bytes)",
+            httpContext.Request.Path,
+            httpContext.Request.ContentLength ?? 0
          );
          await RenderHtml(httpContext);
 

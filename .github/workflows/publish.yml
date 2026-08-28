@@ -37,7 +37,18 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Verify project version
+        shell: bash
+        run: |
+          project_version="$(dotnet msbuild src/Imp/Imp.csproj -getProperty:Version -nologo)"
+          if [[ "$project_version" != "${{ steps.version.outputs.value }}" ]]; then
+            echo "Tag version '${{ steps.version.outputs.value }}' does not match project version '$project_version'." >&2
+            exit 1
+          fi
 
       - name: Restore dependencies
         run: dotnet restore Imp.slnx
@@ -52,6 +63,9 @@ jobs:
           --no-build
           --output artifacts
           -p:PackageVersion=${{ steps.version.outputs.value }}
+
+      - name: Verify package consumers
+        run: ./eng/verify-package.sh ${{ steps.version.outputs.value }} artifacts
 
       - name: Upload release package
         uses: actions/upload-artifact@v7

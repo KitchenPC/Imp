@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <MicrosoftTestingExtensionsCodeCoverageVersion>18.10.0</MicrosoftTestingExtensionsCodeCoverageVersion>
   </PropertyGroup>
 
   <ItemGroup>
