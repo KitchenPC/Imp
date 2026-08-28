@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Imp.Samples.Todo</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Imp/Imp.csproj" />
+    <EmbeddedResource Include="PageTemplates/*.htm" />
+    <EmbeddedResource Include="Templates/*.htm" />
+  </ItemGroup>
+</Project>

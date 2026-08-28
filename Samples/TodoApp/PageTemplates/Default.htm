@@ -1,0 +1,27 @@
+<PageTemplate>
+  <Template.Site>
+    <Content.Title>Imp Todo sample</Content.Title>
+    <Content.Body>
+      <p class="eyebrow">ASP.NET Core + Imp</p>
+      <h1>Keep today manageable.</h1>
+      <p class="lede">A small in-memory task list demonstrating page routing, dependency injection, query binding, POST handling, loops, dynamic content, and reusable templates.</p>
+      <Dynamic.Message />
+      <form class="add-form" method="post">
+        <Dynamic.Antiforgery />
+        <input type="hidden" name="action" value="add" />
+        <label for="title">New task</label>
+        <div><input id="title" name="title" maxlength="120" required="required" placeholder="What needs doing?" /><button type="submit">Add task</button></div>
+      </form>
+      <section class="list-heading">
+        <div><h2>Tasks</h2><p><Dynamic.Summary /></p></div>
+        <nav class="filters"><a href="/?Filter=All">All</a><a href="/?Filter=Active">Active</a><a href="/?Filter=Completed">Completed</a></nav>
+      </section>
+      <ul class="todo-list"><Loop.Tasks><Dynamic.TaskRow /></Loop.Tasks></ul>
+      <form method="post">
+        <Dynamic.Antiforgery />
+        <input type="hidden" name="action" value="clear" />
+        <button class="quiet" type="submit">Clear completed</button>
+      </form>
+    </Content.Body>
+  </Template.Site>
+</PageTemplate>

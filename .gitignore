@@ -1,0 +1,18 @@
+# User-specific files
+*.suo
+*.user
+*.sln.docstates
+.idea/
+.vs/
+
+# Build output
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# NuGet packages
+*.nupkg
+**/packages/*
+!**/packages/build/
