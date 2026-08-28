@@ -7,6 +7,6 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../Imp.csproj" />
+    <ProjectReference Include="../Imp/Imp.csproj" />
   </ItemGroup>
 </Project>

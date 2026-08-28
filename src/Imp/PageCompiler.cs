@@ -155,11 +155,9 @@ namespace Imp
 
       public async Task Render(BasePage page, Stream output)
       {
-         using (var writer = new StreamWriter(output))
-         {
-            await Render(page, writer, null);
-            await writer.FlushAsync();
-         }
+         var writer = new StreamWriter(output, new UTF8Encoding(false), 1024, leaveOpen: true);
+         await Render(page, writer, null);
+         await writer.FlushAsync();
       }
 
       public async Task Render(BasePage page, TextWriter output, object loopValue)

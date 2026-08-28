@@ -4,6 +4,13 @@
 
 Imp (In Memory Pages) is a lightweight page framework built on ASP.NET Core middleware. It maps request paths to .NET classes, creates those classes through ASP.NET Core dependency injection, binds query-string values to page properties, and renders the response. Pages can render HTML directly or use HTML templates embedded in the application's assembly. Embedded templates are compiled once and cached in memory, so no page-template files need to be read from disk while the application is running.
 
+## Repository layout
+
+- `src/Imp` contains the `KitchenPC.Imp` library.
+- `src/Imp.Tests` contains the framework unit tests.
+- `Samples/TodoApp` is a runnable ASP.NET Core To Do website.
+- `Samples/TodoApp.Tests` tests the sample's application behavior.
+
 ## Building and testing
 
 Restore, build, and run the fast unit-test suite from the repository root:
@@ -17,7 +24,7 @@ The tests use in-memory request objects and do not start a web server or make ne
 Create a local NuGet package and symbol package with:
 
 ```bash
-dotnet pack Imp.csproj --configuration Release --output artifacts
+dotnet pack src/Imp/Imp.csproj --configuration Release --output artifacts
 ```
 
 ## Releasing
@@ -33,12 +40,18 @@ Package versions on NuGet are immutable. Never reuse a release tag or version; i
 
 ## Getting started
 
-Reference the Imp project from an ASP.NET Core application:
+Install Imp in an ASP.NET Core application:
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="..\Imp\Imp.csproj" />
+  <PackageReference Include="KitchenPC.Imp" Version="0.1.0" />
 </ItemGroup>
+```
+
+For a complete project-reference example, run the [To Do sample](Samples/TodoApp):
+
+```bash
+dotnet run --project Samples/TodoApp/TodoApp.csproj
 ```
 
 Register Imp near the end of the ASP.NET Core pipeline in `Startup.cs`:

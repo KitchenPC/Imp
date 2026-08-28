@@ -41,7 +41,7 @@ jobs:
 
       - name: Pack
         run: >-
-          dotnet pack Imp.csproj
+          dotnet pack src/Imp/Imp.csproj
           --configuration Release
           --no-build
           --output artifacts

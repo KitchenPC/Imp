@@ -1,4 +1,6 @@
 <Solution>
-  <Project Path="Imp.csproj" />
-  <Project Path="Tests/Imp.Tests/Imp.Tests.csproj" />
+  <Project Path="src/Imp/Imp.csproj" />
+  <Project Path="src/Imp.Tests/Imp.Tests.csproj" />
+  <Project Path="Samples/TodoApp/TodoApp.csproj" />
+  <Project Path="Samples/TodoApp.Tests/TodoApp.Tests.csproj" />
 </Solution>
