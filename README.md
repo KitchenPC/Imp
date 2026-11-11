@@ -57,6 +57,20 @@ Then follow the Wiki's [Getting Started guide](https://github.com/KitchenPC/Imp/
 
 For a complete working application, see the [Todo sample](Samples/TodoApp) or read its [guided tour](https://github.com/KitchenPC/Imp/wiki/Todo-Sample).
 
+## Response headers (0.3.0)
+
+Declare response headers directly on page classes:
+
+```csharp
+[ResponseHeader(ResponseHeader.CacheControl, "private, no-store")]
+public sealed class Account : BasePage { }
+```
+
+Subclass `ResponseHeaderAttribute` for request-dependent policies with scoped DI.
+Imp applies inherited policies before authentication callbacks and lifecycle methods;
+page code can override them later. See [Response headers](docs/Response-Headers.md)
+for custom attribute examples, precedence, and migration guidance.
+
 ## Documentation
 
 The [Imp Wiki](https://github.com/KitchenPC/Imp/wiki) contains the complete developer guide:
@@ -68,6 +82,7 @@ The [Imp Wiki](https://github.com/KitchenPC/Imp/wiki) contains the complete deve
 - [Dynamic content, constants, and loops](https://github.com/KitchenPC/Imp/wiki/Dynamic-Content-Constants-and-Loops)
 - [Forms, postbacks, and antiforgery](https://github.com/KitchenPC/Imp/wiki/Forms-Postbacks-and-Antiforgery)
 - [Dependency injection and lifetimes](https://github.com/KitchenPC/Imp/wiki/Dependency-Injection-and-Lifetimes)
+- [Response headers](https://github.com/KitchenPC/Imp/wiki/Response-Headers)
 - [Authentication and secure pages](https://github.com/KitchenPC/Imp/wiki/Authentication-and-Secure-Pages)
 - [Static assets and CDN paths](https://github.com/KitchenPC/Imp/wiki/Static-Assets-and-CDN-Paths)
 - [Configuration reference](https://github.com/KitchenPC/Imp/wiki/Configuration-Reference)
