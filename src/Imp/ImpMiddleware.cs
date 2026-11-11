@@ -59,6 +59,7 @@ namespace Imp
          var page = request.CreatePageObject(httpContext.Request, httpContext.RequestServices);
          _logger.LogInformation("Creating page type {PageType}", page.GetType().FullName);
          page.SetHandler(this);
+         PageResponseHeaders.Apply(page.GetType(), httpContext);
 
          //If secure page, authenticate first
          var att = page.GetType().GetCustomAttributes(typeof(SecurePageAttribute), false);
